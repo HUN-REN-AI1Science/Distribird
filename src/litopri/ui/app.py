@@ -486,8 +486,6 @@ def process_all_parameters(settings: Settings):
             status.update(label=f"Complete: {param['name']}", state="complete")
 
         st.session_state.results[param["id"]] = result
-        st.subheader(result.parameter.name)
-        render_result(result)
 
     progress_bar.progress(1.0, text="All parameters processed!")
     st.session_state.is_running = False

@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """LitoPri configuration loaded from environment variables."""
 
-    model_config = {"env_prefix": "LITOPRI_"}
+    model_config = {"env_prefix": "LITOPRI_", "env_file": ".env", "env_file_encoding": "utf-8"}
 
     llm_base_url: str = ""
     llm_api_key: str = ""
