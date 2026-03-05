@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "litopri"
+version = "0.1.0"
+description = "Literature-informed Prior distributions for Bayesian model calibration"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Roland Hollos" }, { name = "Patrick Scully" },
+]
+keywords = ["bayesian", "prior", "calibration", "literature", "distribution"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "openai>=1.0",
+    "httpx>=0.25",
+    "scipy>=1.11",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "streamlit>=1.28",
+    "pymupdf>=1.24",
+    "langgraph>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.21",
+    "respx>=0.20",
+    "ruff>=0.1",
+    "mypy>=1.7",
+]
+
+[project.urls]
+Repository = "https://github.com/HUN-REN-AI1Science/LitoPri"
+
+[project.scripts]
+litopri-api = "litopri.api:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/litopri"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/litopri/agent/prompts.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true

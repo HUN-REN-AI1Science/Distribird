@@ -1,0 +1,37 @@
+[
+  {
+    "name": "max_leaf_area_index",
+    "description": "Maximum projected leaf area index of maize under optimal growing conditions",
+    "unit": "m2/m2",
+    "domain_context": "Biome-BGCMuSo maize crop modeling",
+    "constraints": {"lower_bound": 0.0, "upper_bound": 12.0}
+  },
+  {
+    "name": "specific_leaf_area",
+    "description": "Ratio of leaf area to leaf dry mass for maize",
+    "unit": "m2/kg",
+    "domain_context": "Biome-BGCMuSo maize crop modeling",
+    "constraints": {"lower_bound": 5.0, "upper_bound": 60.0}
+  },
+  {
+    "name": "C_N_ratio_leaf",
+    "description": "Carbon to nitrogen ratio in maize leaves",
+    "unit": "g C / g N",
+    "domain_context": "Biome-BGCMuSo maize crop modeling",
+    "constraints": {"lower_bound": 10.0, "upper_bound": 50.0}
+  },
+  {
+    "name": "max_stomatal_conductance",
+    "description": "Maximum stomatal conductance to water vapor for maize",
+    "unit": "m/s",
+    "domain_context": "Biome-BGCMuSo maize crop modeling",
+    "constraints": {"lower_bound": 0.001, "upper_bound": 0.02}
+  },
+  {
+    "name": "allocation_ratio_root_leaf",
+    "description": "Ratio of new root carbon allocation to new leaf carbon allocation in maize",
+    "unit": "dimensionless",
+    "domain_context": "Biome-BGCMuSo maize crop modeling",
+    "constraints": {"lower_bound": 0.1, "upper_bound": 3.0}
+  }
+]
