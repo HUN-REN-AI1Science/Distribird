@@ -8,10 +8,10 @@ import streamlit as st
 
 from litopri.agent.pipeline import run_parameter
 from litopri.config import Settings, get_settings
-from litopri.export.json_export import export_single_json
-from litopri.export.python_export import export_single_python
-from litopri.export.r_export import export_single_r
-from litopri.models import ConstraintSpec, ParameterInput, PipelineResult
+from litopri.export.json_export import export_json, export_single_json
+from litopri.export.python_export import export_python, export_single_python
+from litopri.export.r_export import export_r, export_single_r
+from litopri.models import BatchResult, ConstraintSpec, ParameterInput, PipelineResult
 
 
 def inject_custom_css():
@@ -61,15 +61,169 @@ def _mask_key(key: str) -> str:
     return key[:4] + "*" * (len(key) - 8) + key[-4:]
 
 
+def _check_missing_secrets(settings: Settings) -> list[str]:
+    """Return list of missing required secret descriptions."""
+    missing = []
+    if not settings.llm_base_url:
+        missing.append("LLM Base URL")
+    if not settings.llm_api_key:
+        missing.append("LLM API Key")
+    if not settings.llm_model:
+        missing.append("LLM Model")
+    if settings.enable_semantic_scholar and not settings.semantic_scholar_api_key:
+        missing.append("Semantic Scholar API Key")
+    if settings.enable_llm_deep_research:
+        if not settings.deep_research_base_url:
+            missing.append("Deep Research Base URL")
+        if not settings.deep_research_api_key:
+            missing.append("Deep Research API Key")
+        if not settings.deep_research_model:
+            missing.append("Deep Research Model")
+    return missing
+
+
+def _secret_input(label: str, key: str, default: str, *, password: bool = False) -> str:
+    """Render a sidebar input that shows pre-filled status or required warning."""
+    has_default = bool(default)
+    if password and has_default:
+        placeholder = f"Configured ({_mask_key(default)})"
+    elif has_default:
+        placeholder = default
+    else:
+        placeholder = f"Required — enter {label}"
+    help_text = None if has_default else "Not configured — you must provide this value"
+    value = st.sidebar.text_input(
+        label,
+        value=default if not password else "",
+        placeholder=placeholder,
+        type="password" if password else "default",
+        key=key,
+        help=help_text,
+    )
+    return value if value else default
+
+
+def _render_required_fields(
+    defaults: Settings,
+    use_s2: bool,
+    use_deep: bool,
+) -> dict[str, str]:
+    """Render inputs for connection fields NOT provided in .env.
+
+    These are always visible because the user must fill them in.
+    Returns a dict of field_name -> value for any fields rendered.
+    """
+    overrides: dict[str, str] = {}
+    missing_llm: list[tuple[str, str, str, bool]] = []  # (label, key, field, password)
+
+    if not defaults.llm_base_url:
+        missing_llm.append(("LLM Base URL", "llm_url_req", "llm_base_url", False))
+    if not defaults.llm_api_key:
+        missing_llm.append(("LLM API Key", "llm_key_req", "llm_api_key", True))
+    if not defaults.llm_model:
+        missing_llm.append(("LLM Model", "llm_model_req", "llm_model", False))
+
+    if use_s2 and not defaults.semantic_scholar_api_key:
+        missing_llm.append(("Semantic Scholar API Key", "s2_key_req", "semantic_scholar_api_key", True))
+
+    if use_deep:
+        if not defaults.deep_research_base_url:
+            missing_llm.append(("Deep Research Base URL", "dr_url_req", "deep_research_base_url", False))
+        if not defaults.deep_research_api_key:
+            missing_llm.append(("Deep Research API Key", "dr_key_req", "deep_research_api_key", True))
+        if not defaults.deep_research_model:
+            missing_llm.append(("Deep Research Model", "dr_model_req", "deep_research_model", False))
+
+    if missing_llm:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("Required Settings")
+        for label, key, field, password in missing_llm:
+            value = st.sidebar.text_input(
+                label, value="", key=key,
+                type="password" if password else "default",
+                placeholder=f"Enter {label}",
+            )
+            overrides[field] = value
+
+    return overrides
+
+
+def _render_override_fields(
+    defaults: Settings,
+    use_s2: bool,
+    use_deep: bool,
+    use_openalex: bool,
+) -> dict[str, str]:
+    """Render override inputs for connection fields that ARE provided in .env.
+
+    Only shown when the user enables the override toggle.
+    Returns a dict of field_name -> value for any overridden fields.
+    """
+    # Collect which fields have .env values
+    has_llm = bool(defaults.llm_base_url and defaults.llm_api_key and defaults.llm_model)
+    has_s2 = bool(defaults.semantic_scholar_api_key)
+    has_deep = bool(
+        defaults.deep_research_base_url
+        and defaults.deep_research_api_key
+        and defaults.deep_research_model
+    )
+    has_oa = bool(defaults.openalex_email)
+
+    # Only show the toggle if there's something to override
+    has_any_configured = has_llm or (use_s2 and has_s2) or (use_deep and has_deep) or (use_openalex and has_oa)
+    if not has_any_configured:
+        return {}
+
+    st.sidebar.markdown("---")
+    override = st.sidebar.toggle("Override configured settings", value=False, key="override_toggle")
+    if not override:
+        return {}
+
+    overrides: dict[str, str] = {}
+
+    if has_llm:
+        st.sidebar.subheader("LLM Settings")
+        st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
+        overrides["llm_base_url"] = _secret_input("Base URL", "llm_url_ov", defaults.llm_base_url)
+        overrides["llm_api_key"] = _secret_input("API Key", "llm_key_ov", defaults.llm_api_key, password=True)
+        overrides["llm_model"] = _secret_input("Model", "llm_model_ov", defaults.llm_model)
+
+    if use_s2 and has_s2:
+        st.sidebar.subheader("Semantic Scholar")
+        overrides["semantic_scholar_api_key"] = _secret_input(
+            "API Key", "s2_key_ov", defaults.semantic_scholar_api_key, password=True
+        )
+
+    if use_deep and has_deep:
+        st.sidebar.subheader("Deep Research Model")
+        st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
+        overrides["deep_research_base_url"] = _secret_input("Base URL", "dr_url_ov", defaults.deep_research_base_url)
+        overrides["deep_research_api_key"] = _secret_input(
+            "API Key", "dr_key_ov", defaults.deep_research_api_key, password=True
+        )
+        overrides["deep_research_model"] = _secret_input("Model", "dr_model_ov", defaults.deep_research_model)
+
+    if use_openalex and has_oa:
+        st.sidebar.subheader("OpenAlex")
+        overrides["openalex_email"] = st.sidebar.text_input(
+            "Email", value=defaults.openalex_email, key="oa_email_ov",
+        )
+
+    return overrides
+
+
 def get_settings_from_sidebar() -> Settings:
-    """Render sidebar settings, using config.py defaults with optional overrides."""
+    """Render sidebar settings.
+
+    Fields provided in .env are used automatically and hidden behind an
+    "Override" toggle.  Fields NOT provided in .env are shown as required
+    inputs the user must fill in before running.
+    """
     defaults = get_settings()
 
     st.sidebar.title("Configuration")
 
-    st.sidebar.info(f"Model: **{defaults.llm_model}**")
-
-    # Literature source toggles
+    # --- Literature Sources (always shown) ---
     st.sidebar.subheader("Literature Sources")
     use_s2 = st.sidebar.toggle(
         "Semantic Scholar",
@@ -86,98 +240,79 @@ def get_settings_from_sidebar() -> Settings:
     web_search = st.sidebar.toggle(
         "LLM Web Search",
         value=defaults.llm_web_search,
-        help="Enable Gemini Google Search grounding for context enrichment",
+        help=(
+            "Passes web_search_options in the request body for grounded context "
+            "enrichment. Your LLM endpoint must support this (e.g. OpenRouter, "
+            "LiteLLM proxy with a web-search-capable model). "
+            "Disable if your provider does not support it."
+        ),
         key="web_search",
     )
     use_deep = st.sidebar.toggle(
         "LLM Deep Research",
         value=defaults.enable_llm_deep_research,
-        help="Use o4-mini-deep-research model with built-in web search",
+        help=(
+            "Use a dedicated deep research model with built-in web search. "
+            "Uses the OpenAI Chat Completions API via a separate endpoint."
+        ),
         key="use_deep",
     )
     if not use_s2 and not use_deep and not use_openalex:
         st.sidebar.error("Enable at least one literature source.")
+    if web_search and not defaults.llm_model:
+        st.sidebar.warning(
+            "Web Search requires an LLM endpoint that supports "
+            "`web_search_options` in the request body. "
+            "Disable this if your provider returns errors.",
+            icon="⚠️",
+        )
 
+    # --- Required fields (missing from .env) ---
+    required = _render_required_fields(defaults, use_s2, use_deep)
+
+    # --- Override toggle for .env-provided fields ---
+    overrides = _render_override_fields(defaults, use_s2, use_deep, use_openalex)
+
+    # --- Search Settings ---
     st.sidebar.markdown("---")
-
-    # Override toggle
-    override = st.sidebar.toggle("Override defaults", value=False)
-
-    if override:
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("LLM")
-        base_url = st.sidebar.text_input(
-            "Base URL", value="", placeholder="Enter LLM base URL", key="llm_url"
-        )
-        api_key = st.sidebar.text_input(
-            "API Key", value="", type="password", placeholder="Enter API key", key="llm_key"
-        )
-        model = st.sidebar.text_input(
-            "Model", value="", placeholder="Enter model name", key="llm_model"
-        )
-
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("Semantic Scholar")
-        s2_key = st.sidebar.text_input(
-            "API Key", value="", placeholder="Enter S2 API key", key="s2_key"
-        )
-
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("Deep Research Model")
-        dr_base_url = st.sidebar.text_input(
-            "Base URL", value="", placeholder="Enter deep research base URL", key="dr_url"
-        )
-        dr_api_key = st.sidebar.text_input(
-            "API Key", value="", type="password",
-            placeholder="Enter deep research API key", key="dr_key",
-        )
-        dr_model = st.sidebar.text_input(
-            "Model", value="", placeholder="Enter deep research model name",
-            key="dr_model",
-        )
-
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("Search")
-        max_queries = st.sidebar.slider(
-            "Max search queries", 1, 10, defaults.max_search_queries, key="max_q"
-        )
-        max_papers = st.sidebar.slider(
-            "Max papers per query", 5, 50, defaults.max_papers_per_query, key="max_p"
-        )
-
-        return Settings(
-            llm_base_url=base_url or defaults.llm_base_url,
-            llm_api_key=api_key or defaults.llm_api_key,
-            llm_model=model or defaults.llm_model,
-            semantic_scholar_api_key=s2_key or defaults.semantic_scholar_api_key,
-            max_search_queries=max_queries,
-            max_papers_per_query=max_papers,
-            enable_semantic_scholar=use_s2,
-            enable_openalex=use_openalex,
-            enable_llm_deep_research=use_deep,
-            llm_web_search=web_search,
-            deep_research_base_url=dr_base_url or defaults.deep_research_base_url,
-            deep_research_api_key=dr_api_key or defaults.deep_research_api_key,
-            deep_research_model=dr_model or defaults.deep_research_model,
-        )
-
-    return Settings(
-        **{
-            **defaults.model_dump(),
-            "enable_semantic_scholar": use_s2,
-            "enable_openalex": use_openalex,
-            "enable_llm_deep_research": use_deep,
-            "llm_web_search": web_search,
-        },
+    st.sidebar.subheader("Search Settings")
+    max_queries = st.sidebar.slider(
+        "Max search queries", 1, 10, defaults.max_search_queries, key="max_q"
     )
+    max_papers = st.sidebar.slider(
+        "Max papers per query", 5, 50, defaults.max_papers_per_query, key="max_p"
+    )
+
+    # Merge: defaults ← required ← overrides
+    merged = {
+        **defaults.model_dump(),
+        "enable_semantic_scholar": use_s2,
+        "enable_openalex": use_openalex,
+        "enable_llm_deep_research": use_deep,
+        "llm_web_search": web_search,
+        "max_search_queries": max_queries,
+        "max_papers_per_query": max_papers,
+        **required,
+        **overrides,
+    }
+
+    return Settings(**merged)
 
 
 def check_login() -> bool:
-    """Show login form and return True if authenticated."""
+    """Show login form and return True if authenticated.
+
+    Skip login entirely if credentials are at defaults or empty.
+    """
     if st.session_state.get("authenticated"):
         return True
 
     defaults = get_settings()
+
+    # Skip login if not configured (defaults or empty)
+    if defaults.auth_username in ("demo", "") and defaults.auth_password in ("changeme", ""):
+        return True
+
     st.markdown("### Login")
     with st.form("login_form"):
         username = st.text_input("Username")
@@ -326,14 +461,27 @@ def render_result(result: PipelineResult):
             st.error(f"Could not generate plot: {e}")
 
     # Export
+    safe_name = result.parameter.name.replace(" ", "_")
     st.subheader("Export")
     tab_json, tab_r, tab_py = st.tabs(["JSON", "R", "Python"])
     with tab_json:
-        st.code(export_single_json(result), language="json")
+        json_str = export_single_json(result)
+        st.code(json_str, language="json")
+        st.download_button("Download JSON", json_str,
+                           file_name=f"{safe_name}.json", mime="application/json",
+                           key=f"dl_json_{safe_name}")
     with tab_r:
-        st.code(export_single_r(result), language="r")
+        r_str = export_single_r(result)
+        st.code(r_str, language="r")
+        st.download_button("Download R", r_str,
+                           file_name=f"{safe_name}.R", mime="text/plain",
+                           key=f"dl_r_{safe_name}")
     with tab_py:
-        st.code(export_single_python(result), language="python")
+        py_str = export_single_python(result)
+        st.code(py_str, language="python")
+        st.download_button("Download Python", py_str,
+                           file_name=f"{safe_name}.py", mime="text/x-python",
+                           key=f"dl_py_{safe_name}")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -441,6 +589,31 @@ def render_results_section():
             render_result(result)
             st.divider()
 
+    # Batch export
+    all_results = list(st.session_state.results.values())
+    if all_results:
+        batch = BatchResult(
+            results=all_results,
+            metadata={"n_parameters": len(all_results)},
+        )
+        st.header("Export All Results")
+        col1, col2, col3 = st.columns(3)
+        col1.download_button(
+            "Download All (JSON)", export_json(batch),
+            file_name="litopri_priors.json", mime="application/json",
+            key="dl_all_json",
+        )
+        col2.download_button(
+            "Download All (R)", export_r(batch),
+            file_name="litopri_priors.R", mime="text/plain",
+            key="dl_all_r",
+        )
+        col3.download_button(
+            "Download All (Python)", export_python(batch),
+            file_name="litopri_priors.py", mime="text/x-python",
+            key="dl_all_py",
+        )
+
 
 def process_all_parameters(settings: Settings):
     """Process all valid parameters sequentially with progress."""
@@ -535,10 +708,14 @@ def main():
         for p in st.session_state.params
     )
 
+    missing = _check_missing_secrets(settings)
+    if missing:
+        st.error(f"Missing required settings: {', '.join(missing)}")
+
     if st.button(
         "Generate Priors",
         type="primary",
-        disabled=(not has_valid or st.session_state.is_running),
+        disabled=(not has_valid or st.session_state.is_running or bool(missing)),
     ):
         process_all_parameters(settings)
 
