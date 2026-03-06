@@ -51,7 +51,7 @@ class ExtractedValue(BaseModel):
     reported_range: tuple[float, float] | None = None
     uncertainty: float | None = None
     sample_size: int | None = None
-    context: str = ""
+    context: str | None = ""
 
 
 class LiteratureEvidence(BaseModel):
