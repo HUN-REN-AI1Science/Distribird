@@ -12,6 +12,11 @@ from litopri.export.json_export import export_json, export_single_json
 from litopri.export.python_export import export_python, export_single_python
 from litopri.export.r_export import export_r, export_single_r
 from litopri.models import BatchResult, ConstraintSpec, ParameterInput, PipelineResult
+from litopri.ui.persistence import (
+    clear_persisted_state,
+    hydrate_session_state,
+    save_session_state,
+)
 
 
 def inject_custom_css():
@@ -175,7 +180,9 @@ def _render_override_fields(
         return {}
 
     st.sidebar.markdown("---")
-    override = st.sidebar.toggle("Override configured settings", value=False, key="override_toggle")
+    if "override_toggle" not in st.session_state:
+        st.session_state["override_toggle"] = False
+    override = st.sidebar.toggle("Override configured settings", key="override_toggle")
     if not override:
         return {}
 
@@ -221,25 +228,38 @@ def get_settings_from_sidebar() -> Settings:
     """
     defaults = get_settings()
 
+    # Set defaults in session_state (only if not already set, e.g. by
+    # hydration from localStorage).  This avoids the Streamlit warning
+    # that fires when both ``value=`` and a session_state key are present.
+    _widget_defaults = {
+        "use_s2": defaults.enable_semantic_scholar,
+        "use_openalex": defaults.enable_openalex,
+        "web_search": defaults.llm_web_search,
+        "use_deep": defaults.enable_llm_deep_research,
+        "override_toggle": False,
+        "max_q": defaults.max_search_queries,
+        "max_p": defaults.max_papers_per_query,
+    }
+    for key, val in _widget_defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
     st.sidebar.title("Configuration")
 
     # --- Literature Sources (always shown) ---
     st.sidebar.subheader("Literature Sources")
     use_s2 = st.sidebar.toggle(
         "Semantic Scholar",
-        value=defaults.enable_semantic_scholar,
         help="Search Semantic Scholar for papers with abstracts + open access full text",
         key="use_s2",
     )
     use_openalex = st.sidebar.toggle(
         "OpenAlex",
-        value=defaults.enable_openalex,
         help="Search OpenAlex for open-access papers (no API key required)",
         key="use_openalex",
     )
     web_search = st.sidebar.toggle(
         "LLM Web Search",
-        value=defaults.llm_web_search,
         help=(
             "Passes web_search_options in the request body for grounded context "
             "enrichment. Your LLM endpoint must support this (e.g. OpenRouter, "
@@ -250,7 +270,6 @@ def get_settings_from_sidebar() -> Settings:
     )
     use_deep = st.sidebar.toggle(
         "LLM Deep Research",
-        value=defaults.enable_llm_deep_research,
         help=(
             "Use a dedicated deep research model with built-in web search. "
             "Uses the OpenAI Chat Completions API via a separate endpoint."
@@ -277,10 +296,10 @@ def get_settings_from_sidebar() -> Settings:
     st.sidebar.markdown("---")
     st.sidebar.subheader("Search Settings")
     max_queries = st.sidebar.slider(
-        "Max search queries", 1, 10, defaults.max_search_queries, key="max_q"
+        "Max search queries", 1, 10, key="max_q"
     )
     max_papers = st.sidebar.slider(
-        "Max papers per query", 5, 50, defaults.max_papers_per_query, key="max_p"
+        "Max papers per query", 5, 50, key="max_p"
     )
 
     # Merge: defaults ← required ← overrides
@@ -668,6 +687,8 @@ def main():
     st.set_page_config(page_title="LitoPri", page_icon="📊", layout="wide")
     inject_custom_css()
 
+    ls = hydrate_session_state()
+
     if not check_login():
         return
 
@@ -722,6 +743,18 @@ def main():
     # Show persisted results (from previous runs, visible after rerun)
     if st.session_state.results and not st.session_state.is_running:
         render_results_section()
+
+    # Sidebar: clear saved settings
+    st.sidebar.markdown("---")
+    st.sidebar.caption(
+        "Your settings and results are saved locally in your browser. "
+        "We do not store any of your data on our servers."
+    )
+    if st.sidebar.button("Clear saved settings"):
+        clear_persisted_state(ls)
+        st.rerun()
+
+    save_session_state(ls)
 
 
 if __name__ == "__main__":
