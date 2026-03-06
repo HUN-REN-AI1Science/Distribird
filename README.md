@@ -82,14 +82,22 @@ pytest                     # 130 tests, all passing
 
 ### Configure
 
-LitoPri reads configuration from environment variables (prefix `LITOPRI_`):
+LitoPri reads configuration from environment variables (prefix `LITOPRI_`) or a `.env` file in the project root.
 
 ```bash
-export LITOPRI_LLM_BASE_URL="http://localhost:4000"   # any OpenAI-compatible endpoint
-export LITOPRI_LLM_API_KEY="your-key"
-export LITOPRI_LLM_MODEL="gpt-4o"
-export LITOPRI_SEMANTIC_SCHOLAR_API_KEY=""              # optional, increases rate limits
+# .env (or export these in your shell)
+LITOPRI_LLM_BASE_URL="http://localhost:4000"   # any OpenAI-compatible endpoint
+LITOPRI_LLM_API_KEY="your-key"
+LITOPRI_LLM_MODEL="gpt-4o"
+LITOPRI_SEMANTIC_SCHOLAR_API_KEY=""            # optional, increases rate limits
 ```
+
+**Sidebar behaviour in the Streamlit UI:**
+
+- Settings provided in `.env` are used automatically — no manual input needed.
+- Settings **not** provided in `.env` appear as required fields in the sidebar; the user must fill them in before generation can start.
+- An **"Override configured settings"** toggle lets users temporarily replace `.env` values without editing the file.
+- Literature source toggles (Semantic Scholar, OpenAlex, LLM Web Search, LLM Deep Research) are always visible and control which connection fields are required.
 
 ### Use
 
@@ -158,7 +166,7 @@ from litopri.export.python_export import export_python
 
 ## Demo
 
-A complete worked example using five Biome-BGCMuSo maize parameters ([Hollos et al., 2022](https://doi.org/10.1016/j.envsoft.2022.105339)):
+A complete worked example using five Biome-BGCMuSo maize parameters:
 
 ```bash
 python examples/maize_bgcmuso/demo.py
