@@ -87,9 +87,7 @@ class TestEnrichParameter:
 class TestEnrichParameterContext:
     @patch("litopri.agent.enrich.enrich_parameter")
     @patch("litopri.agent.enrich.research_model")
-    def test_cache_miss_populates(
-        self, mock_research, mock_enrich, parameter, settings
-    ):
+    def test_cache_miss_populates(self, mock_research, mock_enrich, parameter, settings):
         mock_research.return_value = "Model summary text"
         mock_enrich.return_value = EnrichedContext(
             model_summary="Model summary text",
@@ -99,9 +97,7 @@ class TestEnrichParameterContext:
         cache: dict[str, str] = {}
         result = enrich_parameter_context(parameter, settings, model_cache=cache)
 
-        mock_research.assert_called_once_with(
-            "Biome-BGCMuSo maize crop modeling", settings
-        )
+        mock_research.assert_called_once_with("Biome-BGCMuSo maize crop modeling", settings)
         assert cache["Biome-BGCMuSo maize crop modeling"] == "Model summary text"
         assert result.common_terminology == ["term1"]
 
@@ -126,9 +122,7 @@ class TestEnrichmentInPipeline:
     @patch("litopri.agent.extract.extract_all_values")
     @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
     @patch("litopri.agent.search.generate_search_queries")
-    async def test_enrichment_disabled(
-        self, mock_queries, mock_search, mock_extract, settings
-    ):
+    async def test_enrichment_disabled(self, mock_queries, mock_search, mock_extract, settings):
         from litopri.agent.pipeline import run_parameter
         from litopri.models import ExtractedValue, LiteratureEvidence
 

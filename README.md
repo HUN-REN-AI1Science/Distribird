@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/tests-130%20passed-brightgreen" alt="Tests: 130 passed">
+  <img src="https://img.shields.io/badge/tests-148%20passed-brightgreen" alt="Tests: 148 passed">
   <img src="https://img.shields.io/badge/lint-ruff-261230?logo=ruff&logoColor=D7FF64" alt="Linting: ruff">
   <a href="https://langgraph.dev/"><img src="https://img.shields.io/badge/orchestration-LangGraph-1C3C3C?logo=langchain&logoColor=white" alt="LangGraph"></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
@@ -36,29 +36,33 @@ LitoPri closes that gap: **describe your parameter, get a defensible prior in se
 ## Architecture
 
 ```
-                           ┌─────────────────────────────┐
-                           │        LangGraph DAG        │
-                           └─────────────────────────────┘
+                            ┌─────────────────────────────┐
+                            │        LangGraph DAG        │
+                            └─────────────────────────────┘
 
- START ─► Enrich ─► QueryGen ─► Search ───┬──► CrossEnrich ──┐
-                                  ▲       │                  │
-                                  │       └─► FetchFulltext ◄┘
-                          RefineSearch         │
-                                  ▲        Extract
-                                  │            │
-                                  │      QualityGate ──► RefineExtraction
-                                  │        │       │            │
-                                  └────────┘       ▼            │
-                                              Synthesize ◄──────┘
-                                                   │
-                                                  END
+ START ─► Enrich ─► QueryGen ─► Search ─► RelevanceJudge ───┬─► CrossEnrich ───┐
+                                  ▲                         │                  │
+                                  │                         └─► FetchFulltext ◄┘
+                          RefineSearch                              │
+                                  ▲                             Extract
+                                  │                                 │
+                                  │         RefineExtraction ─► QualityGate
+                                  │                             │       │
+                                  └─────────────────────────────┘       ▼
+                                                                   Synthesize
+                                                                        │
+                                                                       END
 ```
 
 **Multi-agent search** &mdash; Semantic Scholar, OpenAlex, and LLM deep-research agents run concurrently; a moderator LLM selects the best papers via deliberation.
 
-**Feedback loops** &mdash; A quality gate inspects extraction results and can trigger search refinement (new queries), cross-enrichment (follow-up from key papers), or extraction refinement (web-assisted re-extraction) before falling through to synthesis.
+**Relevance filtering** &mdash; An LLM-based relevance judge scores and filters papers before extraction, routing high-relevance results through optional cross-enrichment (citation snowballing + follow-up queries).
+
+**Feedback loops** &mdash; A quality gate inspects extraction results and can trigger search refinement (new queries) or extraction refinement (web-assisted re-extraction) before falling through to synthesis.
 
 **Budget-bounded** &mdash; `IterationBudget` caps every loop to guarantee termination.
+
+**Live progress** &mdash; The pipeline streams node-by-node updates to the UI, showing which step is running, paper/value counts, and per-parameter progress bars.
 
 ## Quickstart
 
@@ -76,7 +80,7 @@ git clone https://github.com/HUN-REN-AI1Science/LitoPri.git
 cd litopri
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-pytest                     # 130 tests, all passing
+pytest                     # 148 tests, all passing
 ```
 </details>
 
@@ -175,7 +179,7 @@ python examples/maize_bgcmuso/demo.py
 ## Testing
 
 ```bash
-pytest                 # 130 tests
+pytest                 # 148 tests
 ruff check src/ tests/ # lint
 mypy src/litopri/      # type checking (strict)
 ```

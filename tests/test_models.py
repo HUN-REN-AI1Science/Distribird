@@ -1,6 +1,5 @@
 """Tests for Pydantic models."""
 
-
 from litopri.models import (
     BatchResult,
     ConfidenceLevel,

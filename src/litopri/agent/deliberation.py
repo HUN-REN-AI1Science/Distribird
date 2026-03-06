@@ -55,16 +55,16 @@ async def run_source_agents(
         [a.name for a in agents],
     )
 
-    tasks = [
-        a.search(parameter, queries, settings, enrichment) for a in agents
-    ]
+    tasks = [a.search(parameter, queries, settings, enrichment) for a in agents]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     findings: list[AgentFinding] = []
     for agent, result in zip(agents, results):
         if isinstance(result, Exception):
             logger.warning(
-                "[deliberation] agent %s failed: %s", agent.name, result,
+                "[deliberation] agent %s failed: %s",
+                agent.name,
+                result,
             )
         else:
             findings.append(result)
@@ -273,7 +273,8 @@ async def deliberate(
 
     except Exception as e:
         logger.warning(
-            "[deliberation] moderator LLM failed: %s, falling back to verified papers", e,
+            "[deliberation] moderator LLM failed: %s, falling back to verified papers",
+            e,
         )
         # Fallback: include all verified papers sorted by relevance
         verified_papers = sorted(

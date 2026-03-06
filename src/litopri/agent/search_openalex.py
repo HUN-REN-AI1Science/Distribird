@@ -37,7 +37,7 @@ def _normalize_openalex_doi(doi: str | None) -> str | None:
         return None
     prefix = "https://doi.org/"
     if doi.startswith(prefix):
-        return doi[len(prefix):]
+        return doi[len(prefix) :]
     return doi
 
 
@@ -121,9 +121,7 @@ async def search_openalex_all_queries(
         if i > 0:
             await asyncio.sleep(0.5)  # polite rate limiting
         try:
-            results = await search_openalex(
-                query, settings, limit=settings.max_papers_per_query
-            )
+            results = await search_openalex(query, settings, limit=settings.max_papers_per_query)
             for paper in results:
                 if paper.doi and paper.doi in seen_dois:
                     continue
@@ -140,6 +138,7 @@ async def search_openalex_all_queries(
     result = all_papers[: settings.max_papers_per_query]
     logger.info(
         "[OpenAlex:search_all] done total_unique=%d returned=%d",
-        len(all_papers), len(result),
+        len(all_papers),
+        len(result),
     )
     return result

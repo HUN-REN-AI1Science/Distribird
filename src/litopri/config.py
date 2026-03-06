@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     enable_web_search_agent: bool = False
     deliberation_model: str | None = None
 
+    enable_relevance_judgment: bool = True
+    enable_snowballing: bool = True
+    snowball_max_seeds: int = 3
+    snowball_limit_per_seed: int = 10
+
     # Feedback loop settings (LangGraph pipeline)
     search_refinement_max: int = 2
     cross_enrichment_max: int = 1

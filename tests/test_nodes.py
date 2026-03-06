@@ -10,6 +10,7 @@ from litopri.agent.nodes import (
     fetch_fulltext_node,
     quality_gate_node,
     query_gen_node,
+    relevance_judge_node,
     route_after_deliberation,
     route_after_quality_gate,
     search_node,
@@ -208,3 +209,42 @@ def test_route_after_deliberation_cross_enrich():
         budget=IterationBudget(cross_enrichment_max=1, cross_enrichment_used=0),
     )
     assert route_after_deliberation(state) == "cross_enrich"
+
+
+@pytest.mark.asyncio
+@patch("litopri.agent.search.judge_paper_relevance")
+async def test_relevance_judge_node(mock_judge):
+    mock_judge.return_value = 1  # 1 LLM call
+    papers = [
+        LiteratureEvidence(title="P1", doi="10.1/a", abstract="LAI was 5.8"),
+        LiteratureEvidence(title="P2", doi="10.1/b", abstract="Methodology paper"),
+    ]
+    state = _make_state(all_papers=papers)
+    # Enable relevance judgment in settings
+    settings = Settings(
+        llm_base_url="http://localhost:4000",
+        llm_api_key="test",
+        enable_deliberation=False,
+        enable_context_enrichment=False,
+        enable_relevance_judgment=True,
+    )
+    state["settings_dict"] = settings.model_dump()
+    result = await relevance_judge_node(state)
+    assert any(t.node == "relevance_judge" for t in result["trace_events"])
+    mock_judge.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_relevance_judge_node_disabled():
+    papers = [LiteratureEvidence(title="P1", doi="10.1/a")]
+    settings = Settings(
+        llm_base_url="http://localhost:4000",
+        llm_api_key="test",
+        enable_deliberation=False,
+        enable_context_enrichment=False,
+        enable_relevance_judgment=False,
+    )
+    state = _make_state(all_papers=papers)
+    state["settings_dict"] = settings.model_dump()
+    result = await relevance_judge_node(state)
+    assert any(t.node == "relevance_judge" for t in result["trace_events"])

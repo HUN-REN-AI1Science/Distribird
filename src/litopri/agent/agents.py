@@ -61,6 +61,7 @@ class SemanticScholarAgent:
         extra_queries: list[str] = []
         if blackboard:
             from litopri.agent.state import MessageKind
+
             for msg in blackboard:
                 if msg.kind == MessageKind.CROSS_REF and msg.sender != self.name:
                     extra_queries.extend(msg.references[:3])
@@ -131,7 +132,9 @@ class WebSearchAgent:
         if papers:
             papers, n_discarded = await verify_deep_research_papers(papers, settings)
             logger.info(
-                "[WebSearchAgent] verified=%d discarded=%d", len(papers), n_discarded,
+                "[WebSearchAgent] verified=%d discarded=%d",
+                len(papers),
+                n_discarded,
             )
 
         return AgentFinding(

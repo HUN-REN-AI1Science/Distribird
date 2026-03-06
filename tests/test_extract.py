@@ -80,11 +80,7 @@ def test_extract_filters_out_of_bounds(mock_openai_cls, parameter, paper, settin
 
     mock_response = MagicMock()
     mock_response.choices = [
-        MagicMock(
-            message=MagicMock(
-                content='[{"reported_value": 5.2}, {"reported_value": 15.0}]'
-            )
-        )
+        MagicMock(message=MagicMock(content='[{"reported_value": 5.2}, {"reported_value": 15.0}]'))
     ]
     mock_client.chat.completions.create.return_value = mock_response
 
@@ -105,7 +101,7 @@ class TestLlmJsonCall:
     def test_valid_json_first_try(self):
         mock_client = MagicMock()
         mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content='[1, 2, 3]'))]
+        mock_response.choices = [MagicMock(message=MagicMock(content="[1, 2, 3]"))]
         mock_client.chat.completions.create.return_value = mock_response
 
         result = _llm_json_call(mock_client, "model", [{"role": "user", "content": "test"}])
@@ -140,9 +136,7 @@ class TestLlmJsonCall:
     def test_strips_code_fences(self):
         mock_client = MagicMock()
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content='```json\n[1, 2]\n```'))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content="```json\n[1, 2]\n```"))]
         mock_client.chat.completions.create.return_value = mock_response
 
         result = _llm_json_call(mock_client, "model", [{"role": "user", "content": "test"}])
@@ -155,8 +149,7 @@ class TestBatchExtraction:
     @patch("litopri.agent.extract.OpenAI")
     def test_batch_call(self, mock_openai_cls, parameter, settings):
         papers = [
-            LiteratureEvidence(title=f"Paper {i}", abstract=f"LAI was {4+i}.")
-            for i in range(3)
+            LiteratureEvidence(title=f"Paper {i}", abstract=f"LAI was {4 + i}.") for i in range(3)
         ]
 
         mock_client = MagicMock()
@@ -165,11 +158,13 @@ class TestBatchExtraction:
         mock_response.choices = [
             MagicMock(
                 message=MagicMock(
-                    content=json.dumps({
-                        "0": [{"reported_value": 4.0, "context": "test"}],
-                        "1": [{"reported_value": 5.0, "context": "test"}],
-                        "2": [],
-                    })
+                    content=json.dumps(
+                        {
+                            "0": [{"reported_value": 4.0, "context": "test"}],
+                            "1": [{"reported_value": 5.0, "context": "test"}],
+                            "2": [],
+                        }
+                    )
                 )
             )
         ]
@@ -185,9 +180,7 @@ class TestBatchExtraction:
     @patch("litopri.agent.extract.OpenAI")
     def test_batch_fallback_to_per_paper(self, mock_openai_cls, parameter, settings):
         """When batch call returns non-dict, falls back to per-paper."""
-        papers = [
-            LiteratureEvidence(title="Paper 0", abstract="LAI was 4.0.")
-        ]
+        papers = [LiteratureEvidence(title="Paper 0", abstract="LAI was 4.0.")]
 
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
@@ -198,9 +191,7 @@ class TestBatchExtraction:
         per_paper_response = MagicMock()
         per_paper_response.choices = [
             MagicMock(
-                message=MagicMock(
-                    content='[{"reported_value": 4.0, "context": "fallback"}]'
-                )
+                message=MagicMock(content='[{"reported_value": 4.0, "context": "fallback"}]')
             )
         ]
         mock_client.chat.completions.create.side_effect = [
@@ -219,7 +210,7 @@ class TestBatchExtraction:
     def test_extract_all_uses_batches(self, mock_openai_cls, parameter, settings):
         """extract_all_values should chunk into batches."""
         papers = [
-            LiteratureEvidence(title=f"Paper {i}", abstract=f"LAI was {4+i*0.1}.")
+            LiteratureEvidence(title=f"Paper {i}", abstract=f"LAI was {4 + i * 0.1}.")
             for i in range(7)
         ]
 
@@ -231,9 +222,9 @@ class TestBatchExtraction:
         batch1_response.choices = [
             MagicMock(
                 message=MagicMock(
-                    content=json.dumps({
-                        str(i): [{"reported_value": 4 + i * 0.1}] for i in range(5)
-                    })
+                    content=json.dumps(
+                        {str(i): [{"reported_value": 4 + i * 0.1}] for i in range(5)}
+                    )
                 )
             )
         ]
@@ -241,10 +232,12 @@ class TestBatchExtraction:
         batch2_response.choices = [
             MagicMock(
                 message=MagicMock(
-                    content=json.dumps({
-                        "0": [{"reported_value": 4.5}],
-                        "1": [{"reported_value": 4.6}],
-                    })
+                    content=json.dumps(
+                        {
+                            "0": [{"reported_value": 4.5}],
+                            "1": [{"reported_value": 4.6}],
+                        }
+                    )
                 )
             )
         ]
@@ -262,11 +255,15 @@ class TestWebAssistedExtraction:
         """Web-assisted extraction returns values for papers found online."""
         papers = [
             LiteratureEvidence(
-                title="Paper A", doi="10.1234/a", abstract="LAI study.",
+                title="Paper A",
+                doi="10.1234/a",
+                abstract="LAI study.",
                 relevance_score=0.9,
             ),
             LiteratureEvidence(
-                title="Paper B", doi="10.1234/b", abstract="Another study.",
+                title="Paper B",
+                doi="10.1234/b",
+                abstract="Another study.",
                 relevance_score=0.7,
             ),
         ]
@@ -277,12 +274,19 @@ class TestWebAssistedExtraction:
         mock_response.choices = [
             MagicMock(
                 message=MagicMock(
-                    content=json.dumps({
-                        "0": [{"reported_value": 6.1, "context": "Table 2",
-                               "source_url": "https://doi.org/10.1234/a",
-                               "extraction_confidence": "high"}],
-                        "1": [],
-                    })
+                    content=json.dumps(
+                        {
+                            "0": [
+                                {
+                                    "reported_value": 6.1,
+                                    "context": "Table 2",
+                                    "source_url": "https://doi.org/10.1234/a",
+                                    "extraction_confidence": "high",
+                                }
+                            ],
+                            "1": [],
+                        }
+                    )
                 )
             )
         ]
@@ -303,9 +307,7 @@ class TestWebAssistedExtraction:
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content=json.dumps({"0": []})))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps({"0": []})))]
         mock_client.chat.completions.create.return_value = mock_response
 
         result = extract_values_web_assisted(papers, parameter, settings)
@@ -316,7 +318,8 @@ class TestWebAssistedExtraction:
         """Only top max_papers are sent to LLM."""
         papers = [
             LiteratureEvidence(
-                title=f"Paper {i}", abstract=f"Abstract {i}",
+                title=f"Paper {i}",
+                abstract=f"Abstract {i}",
                 relevance_score=i / 15.0,
             )
             for i in range(15)
@@ -326,9 +329,7 @@ class TestWebAssistedExtraction:
         mock_openai_cls.return_value = mock_client
         mock_response = MagicMock()
         # Return empty for all — we just care about how many batches are called
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content=json.dumps({})))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps({})))]
         mock_client.chat.completions.create.return_value = mock_response
 
         extract_values_web_assisted(papers, parameter, settings, max_papers=10)
@@ -341,16 +342,16 @@ class TestWebAssistedExtraction:
         """Verify the prompt sent to LLM includes paper DOIs."""
         papers = [
             LiteratureEvidence(
-                title="DOI Paper", doi="10.9999/testdoi", abstract="Test.",
+                title="DOI Paper",
+                doi="10.9999/testdoi",
+                abstract="Test.",
             ),
         ]
 
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content=json.dumps({"0": []})))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps({"0": []})))]
         mock_client.chat.completions.create.return_value = mock_response
 
         extract_values_web_assisted(papers, parameter, settings)

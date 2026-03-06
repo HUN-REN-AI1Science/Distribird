@@ -61,7 +61,9 @@ async def search_semantic_scholar(
 
     logger.info(
         "[S2:search] query=%r limit=%d url=%s",
-        query, limit, settings.semantic_scholar_base_url,
+        query,
+        limit,
+        settings.semantic_scholar_base_url,
     )
 
     async with httpx.AsyncClient(timeout=settings.extraction_timeout) as client:
@@ -115,7 +117,9 @@ async def search_semantic_scholar(
 
     logger.info(
         "[S2:search] query=%r OA filter: %d/%d papers have open-access PDF",
-        query, len(papers), total,
+        query,
+        len(papers),
+        total,
     )
     return papers[:limit]
 
@@ -151,10 +155,11 @@ async def search_all_queries(
         key=lambda p: (p.relevance_score, p.year or 0),
         reverse=True,
     )
-    result = all_papers[:settings.max_papers_per_query]
+    result = all_papers[: settings.max_papers_per_query]
     logger.info(
         "[S2:search_all] done total_unique=%d returned=%d",
-        len(all_papers), len(result),
+        len(all_papers),
+        len(result),
     )
     return result
 
@@ -186,8 +191,7 @@ def judge_paper_relevance(
     for start in range(0, len(unjudged), batch_size):
         batch = unjudged[start : start + batch_size]
         papers_block = "\n".join(
-            f"[{i}] {p.title} ({p.year}): {(p.abstract or '')[:300]}"
-            for i, p in enumerate(batch)
+            f"[{i}] {p.title} ({p.year}): {(p.abstract or '')[:300]}" for i, p in enumerate(batch)
         )
 
         prompt = RELEVANCE_JUDGMENT.format(
@@ -201,7 +205,8 @@ def judge_paper_relevance(
 
         try:
             raw = _llm_json_call(
-                client, settings.llm_model,
+                client,
+                settings.llm_model,
                 [{"role": "user", "content": prompt}],
                 temperature=0.0,
             )
@@ -338,9 +343,7 @@ def _build_enrichment_block(enrichment: EnrichedContext | None) -> str:
     """Build the enrichment block for the search query prompt."""
     if enrichment is None or (not enrichment.common_terminology and not enrichment.search_hints):
         return ""
-    lines = [
-        "\nContext enrichment (use these terms instead of model-internal jargon):"
-    ]
+    lines = ["\nContext enrichment (use these terms instead of model-internal jargon):"]
     if enrichment.common_terminology:
         lines.append(f"  Common scientific terms: {', '.join(enrichment.common_terminology)}")
     if enrichment.search_hints:
@@ -373,7 +376,9 @@ def generate_search_queries(
 
     logger.info(
         "[LLM:search_queries] param=%r model=%s n_queries=%d",
-        parameter.name, settings.llm_model, settings.max_search_queries,
+        parameter.name,
+        settings.llm_model,
+        settings.max_search_queries,
     )
 
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
@@ -429,7 +434,8 @@ async def llm_deep_research(
     extra_body = None
     logger.info(
         "[LLM:deep_research] param=%r model=%s",
-        parameter.name, model,
+        parameter.name,
+        model,
     )
 
     try:
@@ -476,7 +482,7 @@ def _normalize_doi(doi: str) -> str:
     doi = doi.strip()
     for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
         if doi.lower().startswith(prefix.lower()):
-            doi = doi[len(prefix):]
+            doi = doi[len(prefix) :]
     return doi.strip()
 
 
@@ -568,11 +574,13 @@ async def verify_deep_research_papers(
             discarded += 1
             logger.info(
                 "[S2:verify_batch] discarded paper=%r doi=%s",
-                paper.title, paper.doi,
+                paper.title,
+                paper.doi,
             )
 
     logger.info(
         "[S2:verify_batch] verified=%d discarded=%d",
-        len(verified), discarded,
+        len(verified),
+        discarded,
     )
     return verified, discarded

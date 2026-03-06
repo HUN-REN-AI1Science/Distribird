@@ -11,7 +11,7 @@ def _prior_to_python(prior: FittedPrior) -> str:
     name = prior.parameter_name.replace(" ", "_").replace("-", "_")
 
     if prior.family == DistributionFamily.NORMAL:
-        return f'{name} = stats.norm(loc={p["mu"]}, scale={p["sigma"]})'
+        return f"{name} = stats.norm(loc={p['mu']}, scale={p['sigma']})"
 
     if prior.family == DistributionFamily.TRUNCATED_NORMAL:
         a_std = (p["a"] - p["mu"]) / p["sigma"]
@@ -19,26 +19,26 @@ def _prior_to_python(prior: FittedPrior) -> str:
         return (
             f"{name} = stats.truncnorm("
             f"a={a_std:.6g}, b={b_std:.6g}, "
-            f'loc={p["mu"]}, scale={p["sigma"]})'
+            f"loc={p['mu']}, scale={p['sigma']})"
         )
 
     if prior.family == DistributionFamily.GAMMA:
-        return f'{name} = stats.gamma(a={p["alpha"]}, scale={p["scale"]})'
+        return f"{name} = stats.gamma(a={p['alpha']}, scale={p['scale']})"
 
     if prior.family == DistributionFamily.LOGNORMAL:
-        return f'{name} = stats.lognorm(s={p["sigma"]}, scale=np.exp({p["mu"]}))'
+        return f"{name} = stats.lognorm(s={p['sigma']}, scale=np.exp({p['mu']}))"
 
     if prior.family == DistributionFamily.BETA:
         return (
-            f'# Beta on [{p["lower"]}, {p["upper"]}]\n'
-            f'{name}_01 = stats.beta(a={p["alpha"]}, b={p["beta"]})\n'
+            f"# Beta on [{p['lower']}, {p['upper']}]\n"
+            f"{name}_01 = stats.beta(a={p['alpha']}, b={p['beta']})\n"
             f"# To sample: {name}_01.rvs(n) * "
-            f'({p["upper"]} - {p["lower"]}) + {p["lower"]}'
+            f"({p['upper']} - {p['lower']}) + {p['lower']}"
         )
 
     if prior.family == DistributionFamily.UNIFORM:
         scale = p["upper"] - p["lower"]
-        return f'{name} = stats.uniform(loc={p["lower"]}, scale={scale})'
+        return f"{name} = stats.uniform(loc={p['lower']}, scale={scale})"
 
     return f"# Unsupported distribution: {prior.family.value}"
 

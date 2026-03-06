@@ -42,9 +42,7 @@ async def health():
 
 
 @app.post("/api/v1/parameter")
-async def process_parameter(
-    parameter: ParameterInput, _user: str = Depends(verify_credentials)
-):
+async def process_parameter(parameter: ParameterInput, _user: str = Depends(verify_credentials)):
     """Process a single parameter and return its fitted prior."""
     settings = get_settings()
     try:

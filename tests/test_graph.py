@@ -58,7 +58,11 @@ def test_graph_has_relevance_judge_node():
 @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
 @patch("litopri.agent.search.generate_search_queries")
 async def test_graph_happy_path(
-    mock_queries, mock_search, mock_extract, parameter, settings,
+    mock_queries,
+    mock_search,
+    mock_extract,
+    parameter,
+    settings,
 ):
     """Full graph execution with sufficient values -> straight to synthesis."""
     papers = [
@@ -85,7 +89,11 @@ async def test_graph_happy_path(
 @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
 @patch("litopri.agent.search.generate_search_queries")
 async def test_graph_no_loops_when_sufficient(
-    mock_queries, mock_search, mock_extract, parameter, settings,
+    mock_queries,
+    mock_search,
+    mock_extract,
+    parameter,
+    settings,
 ):
     """When enough values are found, no loops trigger."""
     papers = [
@@ -115,7 +123,10 @@ async def test_graph_no_loops_when_sufficient(
 @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
 @patch("litopri.agent.search.generate_search_queries")
 async def test_graph_loop_a_triggers(
-    mock_queries, mock_search, mock_extract, mock_llm_json,
+    mock_queries,
+    mock_search,
+    mock_extract,
+    mock_llm_json,
     parameter,
 ):
     """0 values with papers triggers search refinement loop."""
@@ -176,7 +187,10 @@ async def test_graph_loop_a_triggers(
 @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
 @patch("litopri.agent.search.generate_search_queries")
 async def test_graph_loop_termination(
-    mock_queries, mock_search, mock_extract, parameter,
+    mock_queries,
+    mock_search,
+    mock_extract,
+    parameter,
 ):
     """Budget exhaustion forces synthesis even with 0 values."""
     loop_settings = Settings(
@@ -207,7 +221,11 @@ async def test_graph_loop_termination(
 @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
 @patch("litopri.agent.search.generate_search_queries")
 async def test_graph_no_papers(
-    mock_queries, mock_search, mock_extract, parameter, settings,
+    mock_queries,
+    mock_search,
+    mock_extract,
+    parameter,
+    settings,
 ):
     """No papers found -> uninformative prior."""
     mock_queries.return_value = ["maize LAI"]
@@ -224,7 +242,11 @@ async def test_graph_no_papers(
 @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
 @patch("litopri.agent.search.generate_search_queries")
 async def test_graph_streams_with_callback(
-    mock_queries, mock_search, mock_extract, parameter, settings,
+    mock_queries,
+    mock_search,
+    mock_extract,
+    parameter,
+    settings,
 ):
     """astream mode invokes callback for each node."""
     papers = [

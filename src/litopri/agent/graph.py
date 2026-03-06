@@ -148,7 +148,8 @@ async def run_parameter_graph(
 
     final_state: dict[str, Any] = dict(initial_state)
     async for chunk in compiled.astream(
-        cast(Any, initial_state), stream_mode="updates",
+        cast(Any, initial_state),
+        stream_mode="updates",
     ):
         for node_name, node_output in chunk.items():
             if node_name == "__start__" or not node_output:
@@ -160,6 +161,7 @@ async def run_parameter_graph(
     prior = final_state.get("prior")
     if prior is None:
         from litopri.distributions.uninformative import wide_normal_prior
+
         prior = wide_normal_prior(
             parameter.name,
             parameter.constraints.lower_bound,
@@ -172,8 +174,7 @@ async def run_parameter_graph(
         search_queries=final_state.get("all_queries_tried", []),
         papers_found=len(final_state.get("all_papers", [])),
         values_extracted=sum(
-            len(p.extracted_values)
-            for p in final_state.get("papers_with_values", [])
+            len(p.extracted_values) for p in final_state.get("papers_with_values", [])
         ),
         warnings=final_state.get("warnings", []),
         enrichment=final_state.get("enrichment"),

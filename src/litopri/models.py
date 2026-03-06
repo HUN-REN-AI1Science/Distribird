@@ -66,6 +66,7 @@ class LiteratureEvidence(BaseModel):
     pdf_url: str | None = None
     extracted_values: list[ExtractedValue] = Field(default_factory=list)
     relevance_score: float = Field(0.0, ge=0.0, le=1.0)
+    relevance_snippet: str = Field("", description="Most relevant abstract snippet")
     verified: bool = Field(False, description="Whether verified against external API")
     source: str = Field("unknown", description="Origin: 'semantic_scholar' or 'llm_deep_research'")
 

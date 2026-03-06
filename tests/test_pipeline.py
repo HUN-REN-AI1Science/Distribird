@@ -80,9 +80,7 @@ async def test_pipeline_high_confidence(
 @patch("litopri.agent.extract.extract_all_values")
 @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
 @patch("litopri.agent.search.generate_search_queries")
-async def test_pipeline_no_evidence(
-    mock_queries, mock_search, mock_extract, parameter, settings
-):
+async def test_pipeline_no_evidence(mock_queries, mock_search, mock_extract, parameter, settings):
     mock_queries.return_value = ["maize LAI"]
     mock_search.return_value = []
     mock_extract.return_value = []
@@ -139,7 +137,10 @@ async def test_run_batch_parallel(mock_queries, mock_search, mock_extract, setti
 @patch("litopri.agent.extract.extract_all_values")
 @patch("litopri.agent.search.generate_search_queries")
 async def test_pipeline_with_deliberation(
-    mock_queries, mock_extract, parameter, mock_papers,
+    mock_queries,
+    mock_extract,
+    parameter,
+    mock_papers,
 ):
     """Verify pipeline uses deliberation path when enabled."""
     delib_settings = Settings(
@@ -169,14 +170,17 @@ async def test_pipeline_with_deliberation(
         ],
     )
 
-    with patch(
-        "litopri.agent.deliberation.run_source_agents",
-        new_callable=AsyncMock,
-        return_value=mock_deliberation.agent_findings,
-    ), patch(
-        "litopri.agent.deliberation.deliberate",
-        new_callable=AsyncMock,
-        return_value=mock_deliberation,
+    with (
+        patch(
+            "litopri.agent.deliberation.run_source_agents",
+            new_callable=AsyncMock,
+            return_value=mock_deliberation.agent_findings,
+        ),
+        patch(
+            "litopri.agent.deliberation.deliberate",
+            new_callable=AsyncMock,
+            return_value=mock_deliberation,
+        ),
     ):
         result = await run_parameter(parameter, delib_settings)
 

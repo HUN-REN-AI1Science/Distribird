@@ -67,8 +67,10 @@ def test_deduplicate_merges_by_doi():
             source_type="llm_deep_research",
             papers=[
                 _make_paper(
-                    "Paper 1 (variant)", "10.1234/p1",
-                    verified=False, source="llm_deep_research",
+                    "Paper 1 (variant)",
+                    "10.1234/p1",
+                    verified=False,
+                    source="llm_deep_research",
                 ),
                 _make_paper("Paper 2", "10.1234/p2", verified=False, source="llm_deep_research"),
             ],
@@ -163,8 +165,10 @@ async def test_deliberate_with_mock_llm(mock_openai, mock_llm_call, parameter, s
             source_type="llm_deep_research",
             papers=[
                 _make_paper(
-                    "Good Paper", "10.1234/good",
-                    verified=False, source="llm_deep_research",
+                    "Good Paper",
+                    "10.1234/good",
+                    verified=False,
+                    source="llm_deep_research",
                 ),
                 _make_paper("New Paper", "10.1234/new", verified=True, source="llm_deep_research"),
             ],

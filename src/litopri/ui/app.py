@@ -12,7 +12,7 @@ from litopri.config import Settings, get_settings
 from litopri.export.json_export import export_single_json
 from litopri.export.python_export import export_single_python
 from litopri.export.r_export import export_single_r
-from litopri.models import ConstraintSpec, ParameterInput, PipelineResult
+from litopri.models import ConstraintSpec, LiteratureEvidence, ParameterInput, PipelineResult
 from litopri.ui.persistence import (
     clear_persisted_state,
     hydrate_session_state,
@@ -130,34 +130,52 @@ def _render_required_fields(
         missing_llm.append(("LLM Model", "llm_model_req", "llm_model", False))
 
     if use_s2 and not defaults.semantic_scholar_api_key:
-        missing_llm.append((
-            "Semantic Scholar API Key", "s2_key_req",
-            "semantic_scholar_api_key", True,
-        ))
+        missing_llm.append(
+            (
+                "Semantic Scholar API Key",
+                "s2_key_req",
+                "semantic_scholar_api_key",
+                True,
+            )
+        )
 
     if use_deep:
         if not defaults.deep_research_base_url:
-            missing_llm.append((
-                "Deep Research Base URL", "dr_url_req",
-                "deep_research_base_url", False,
-            ))
+            missing_llm.append(
+                (
+                    "Deep Research Base URL",
+                    "dr_url_req",
+                    "deep_research_base_url",
+                    False,
+                )
+            )
         if not defaults.deep_research_api_key:
-            missing_llm.append((
-                "Deep Research API Key", "dr_key_req",
-                "deep_research_api_key", True,
-            ))
+            missing_llm.append(
+                (
+                    "Deep Research API Key",
+                    "dr_key_req",
+                    "deep_research_api_key",
+                    True,
+                )
+            )
         if not defaults.deep_research_model:
-            missing_llm.append((
-                "Deep Research Model", "dr_model_req",
-                "deep_research_model", False,
-            ))
+            missing_llm.append(
+                (
+                    "Deep Research Model",
+                    "dr_model_req",
+                    "deep_research_model",
+                    False,
+                )
+            )
 
     if missing_llm:
         st.sidebar.markdown("---")
         st.sidebar.subheader("Required Settings")
         for label, key, field, password in missing_llm:
             value = st.sidebar.text_input(
-                label, value="", key=key,
+                label,
+                value="",
+                key=key,
                 type="password" if password else "default",
                 placeholder=f"Enter {label}",
             )
@@ -189,8 +207,7 @@ def _render_override_fields(
 
     # Only show the toggle if there's something to override
     has_any_configured = (
-        has_llm or (use_s2 and has_s2)
-        or (use_deep and has_deep) or (use_openalex and has_oa)
+        has_llm or (use_s2 and has_s2) or (use_deep and has_deep) or (use_openalex and has_oa)
     )
     if not has_any_configured:
         return {}
@@ -209,7 +226,10 @@ def _render_override_fields(
         st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
         overrides["llm_base_url"] = _secret_input("Base URL", "llm_url_ov", defaults.llm_base_url)
         overrides["llm_api_key"] = _secret_input(
-            "API Key", "llm_key_ov", defaults.llm_api_key, password=True,
+            "API Key",
+            "llm_key_ov",
+            defaults.llm_api_key,
+            password=True,
         )
         overrides["llm_model"] = _secret_input("Model", "llm_model_ov", defaults.llm_model)
 
@@ -223,20 +243,28 @@ def _render_override_fields(
         st.sidebar.subheader("Deep Research Model")
         st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
         overrides["deep_research_base_url"] = _secret_input(
-            "Base URL", "dr_url_ov", defaults.deep_research_base_url,
+            "Base URL",
+            "dr_url_ov",
+            defaults.deep_research_base_url,
         )
         overrides["deep_research_api_key"] = _secret_input(
-            "API Key", "dr_key_ov",
-            defaults.deep_research_api_key, password=True,
+            "API Key",
+            "dr_key_ov",
+            defaults.deep_research_api_key,
+            password=True,
         )
         overrides["deep_research_model"] = _secret_input(
-            "Model", "dr_model_ov", defaults.deep_research_model,
+            "Model",
+            "dr_model_ov",
+            defaults.deep_research_model,
         )
 
     if use_openalex and has_oa:
         st.sidebar.subheader("OpenAlex")
         overrides["openalex_email"] = st.sidebar.text_input(
-            "Email", value=defaults.openalex_email, key="oa_email_ov",
+            "Email",
+            value=defaults.openalex_email,
+            key="oa_email_ov",
         )
 
     return overrides
@@ -318,12 +346,8 @@ def get_settings_from_sidebar() -> Settings:
     # --- Search Settings ---
     st.sidebar.markdown("---")
     st.sidebar.subheader("Search Settings")
-    max_queries = st.sidebar.slider(
-        "Max search queries", 1, 10, key="max_q"
-    )
-    max_papers = st.sidebar.slider(
-        "Max papers per query", 5, 50, key="max_p"
-    )
+    max_queries = st.sidebar.slider("Max search queries", 1, 10, key="max_q")
+    max_papers = st.sidebar.slider("Max papers per query", 5, 50, key="max_p")
 
     # Merge: defaults ← required ← overrides
     merged = {
@@ -374,7 +398,7 @@ def check_login() -> bool:
     return False
 
 
-def _collect_references(result: PipelineResult) -> list:
+def _collect_references(result: PipelineResult) -> list[LiteratureEvidence]:
     """Build the full reference list matching deliberation paper indices.
 
     The deliberation moderator numbers papers [0]...[N] and may reference
@@ -389,7 +413,7 @@ def _collect_references(result: PipelineResult) -> list:
     return prior.evidence if prior.evidence else []
 
 
-def _render_single_export(safe_name: str, result: PipelineResult):
+def _render_single_export(safe_name: str, result: PipelineResult) -> None:
     """Per-result export with tabs for each format."""
     st.subheader("Export")
     tab_json, tab_r, tab_py = st.tabs(["JSON", "R", "Python"])
@@ -397,27 +421,35 @@ def _render_single_export(safe_name: str, result: PipelineResult):
         json_str = export_single_json(result)
         st.code(json_str, language="json")
         st.download_button(
-            f"Download {safe_name}.json", json_str,
-            file_name=f"{safe_name}.json", mime="application/json",
-            key=f"dl_json_{safe_name}", use_container_width=True,
+            f"Download {safe_name}.json",
+            json_str,
+            file_name=f"{safe_name}.json",
+            mime="application/json",
+            key=f"dl_json_{safe_name}",
+            use_container_width=True,
         )
     with tab_r:
         r_str = export_single_r(result)
         st.code(r_str, language="r")
         st.download_button(
-            f"Download {safe_name}.R", r_str,
-            file_name=f"{safe_name}.R", mime="text/plain",
-            key=f"dl_r_{safe_name}", use_container_width=True,
+            f"Download {safe_name}.R",
+            r_str,
+            file_name=f"{safe_name}.R",
+            mime="text/plain",
+            key=f"dl_r_{safe_name}",
+            use_container_width=True,
         )
     with tab_py:
         py_str = export_single_python(result)
         st.code(py_str, language="python")
         st.download_button(
-            f"Download {safe_name}.py", py_str,
-            file_name=f"{safe_name}.py", mime="text/x-python",
-            key=f"dl_py_{safe_name}", use_container_width=True,
+            f"Download {safe_name}.py",
+            py_str,
+            file_name=f"{safe_name}.py",
+            mime="text/x-python",
+            key=f"dl_py_{safe_name}",
+            use_container_width=True,
         )
-
 
 
 def render_result(result: PipelineResult):
@@ -491,22 +523,15 @@ def render_result(result: PipelineResult):
                 st.caption(f"Extracted values: {'; '.join(values_strs)}")
 
     # Excluded papers (from deliberation) shown in a collapsed, muted section
-    excluded = (
-        result.deliberation.excluded_papers
-        if result.deliberation else []
-    )
+    excluded = result.deliberation.excluded_papers if result.deliberation else []
     if excluded:
-        with st.expander(
-            f"Excluded papers ({len(excluded)} reviewed but not used)"
-        ):
+        with st.expander(f"Excluded papers ({len(excluded)} reviewed but not used)"):
             for e in excluded:
                 authors = ", ".join(e.authors[:3])
                 if len(e.authors) > 3:
                     authors += " et al."
                 year = e.year or "n.d."
-                doi_link = (
-                    f"https://doi.org/{e.doi}" if e.doi else None
-                )
+                doi_link = f"https://doi.org/{e.doi}" if e.doi else None
                 line = f"{authors} ({year}). *{e.title}*."
                 if doi_link:
                     line += f" [DOI]({doi_link})"
@@ -535,8 +560,9 @@ def render_result(result: PipelineResult):
             elif prior.family.value == "uniform":
                 dist = stats.uniform(loc=p["lower"], scale=p["upper"] - p["lower"])
             elif prior.family.value == "beta":
-                dist = stats.beta(a=p["alpha"], b=p["beta"],
-                                  loc=p["lower"], scale=p["upper"] - p["lower"])
+                dist = stats.beta(
+                    a=p["alpha"], b=p["beta"], loc=p["lower"], scale=p["upper"] - p["lower"]
+                )
             else:
                 dist = None
 
@@ -565,8 +591,14 @@ def init_session_state():
     """Initialize session state keys for dynamic parameter rows."""
     if "params" not in st.session_state:
         st.session_state.params = [
-            {"id": 0, "name": "", "description": "", "unit": "",
-             "lower_bound": None, "upper_bound": None}
+            {
+                "id": 0,
+                "name": "",
+                "description": "",
+                "unit": "",
+                "lower_bound": None,
+                "upper_bound": None,
+            }
         ]
     if "next_id" not in st.session_state:
         st.session_state.next_id = 1
@@ -581,8 +613,14 @@ def add_parameter_row():
     row_id = st.session_state.next_id
     st.session_state.next_id += 1
     st.session_state.params.append(
-        {"id": row_id, "name": "", "description": "", "unit": "",
-         "lower_bound": None, "upper_bound": None}
+        {
+            "id": row_id,
+            "name": "",
+            "description": "",
+            "unit": "",
+            "lower_bound": None,
+            "upper_bound": None,
+        }
     )
 
 
@@ -621,34 +659,53 @@ def render_parameter_rows():
         cols = st.columns([3, 4, 1.5, 1.5, 1.5, 0.5])
 
         cols[0].text_input(
-            "Name", value=param["name"], key=f"name_{rid}",
+            "Name",
+            value=param["name"],
+            key=f"name_{rid}",
             placeholder="e.g., leaf_area_index",
-            label_visibility="collapsed", disabled=is_running,
+            label_visibility="collapsed",
+            disabled=is_running,
         )
         cols[1].text_input(
-            "Description", value=param["description"], key=f"desc_{rid}",
+            "Description",
+            value=param["description"],
+            key=f"desc_{rid}",
             placeholder="e.g., Maximum leaf area index of maize",
-            label_visibility="collapsed", disabled=is_running,
+            label_visibility="collapsed",
+            disabled=is_running,
         )
         cols[2].text_input(
-            "Unit", value=param["unit"], key=f"unit_{rid}",
+            "Unit",
+            value=param["unit"],
+            key=f"unit_{rid}",
             placeholder="e.g., m2/m2",
-            label_visibility="collapsed", disabled=is_running,
+            label_visibility="collapsed",
+            disabled=is_running,
         )
         cols[3].number_input(
-            "Lower", value=param["lower_bound"], key=f"lower_{rid}",
-            format="%f", label_visibility="collapsed", disabled=is_running,
+            "Lower",
+            value=param["lower_bound"],
+            key=f"lower_{rid}",
+            format="%f",
+            label_visibility="collapsed",
+            disabled=is_running,
         )
         cols[4].number_input(
-            "Upper", value=param["upper_bound"], key=f"upper_{rid}",
-            format="%f", label_visibility="collapsed", disabled=is_running,
+            "Upper",
+            value=param["upper_bound"],
+            key=f"upper_{rid}",
+            format="%f",
+            label_visibility="collapsed",
+            disabled=is_running,
         )
 
         # Only show remove button if more than one row
         if len(st.session_state.params) > 1:
             cols[5].button(
-                "X", key=f"rm_{rid}",
-                on_click=remove_parameter_row, args=(rid,),
+                "X",
+                key=f"rm_{rid}",
+                on_click=remove_parameter_row,
+                args=(rid,),
                 disabled=is_running,
             )
 
@@ -665,15 +722,13 @@ def render_results_section():
             st.divider()
 
 
-
 def process_all_parameters(settings: Settings):
     """Process all valid parameters sequentially with progress."""
     sync_param_values()
     domain_context = st.session_state.get("domain_context", "")
 
     valid_params = [
-        p for p in st.session_state.params
-        if p["name"].strip() and p["description"].strip()
+        p for p in st.session_state.params if p["name"].strip() and p["description"].strip()
     ]
 
     if not valid_params:
@@ -738,9 +793,7 @@ def process_all_parameters(settings: Settings):
                 # Update per-parameter progress (never decreases)
                 if not is_retry and weight > 0:
                     _completed.add(node_name)
-                pct = sum(
-                    NODE_META[nd][1] for nd in _completed if nd in NODE_META
-                )
+                pct = sum(NODE_META[nd][1] for nd in _completed if nd in NODE_META)
                 _step_progress.progress(min(pct, 1.0))
 
                 # Update overall bar
@@ -751,9 +804,7 @@ def process_all_parameters(settings: Settings):
                 )
 
             try:
-                result = asyncio.run(
-                    run_parameter(parameter, settings, on_node_complete)
-                )
+                result = asyncio.run(run_parameter(parameter, settings, on_node_complete))
             except Exception as e:
                 st.error(f"Error processing {param['name']}: {e}")
                 status.update(label=f"Error: {param['name']}", state="error")
@@ -811,8 +862,7 @@ def main():
     # Check if any valid parameters exist
     sync_param_values()
     has_valid = any(
-        p["name"].strip() and p["description"].strip()
-        for p in st.session_state.params
+        p["name"].strip() and p["description"].strip() for p in st.session_state.params
     )
 
     missing = _check_missing_secrets(settings)

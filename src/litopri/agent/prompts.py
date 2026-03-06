@@ -414,6 +414,42 @@ Example output:
 }}
 """
 
+RELEVANCE_JUDGMENT = """\
+You are a scientific literature relevance assessor. For each paper below, judge how likely \
+it is to contain **specific numerical values** for the target parameter. Focus on whether the \
+abstract suggests the paper reports measured, calibrated, or stated values — not just discusses \
+the topic.
+
+Parameter: {name}
+Description: {description}
+Unit: {unit}
+Domain context: {domain_context}
+{enrichment_block}
+
+Papers to judge:
+{papers_block}
+
+For EACH paper (by index), return:
+- "relevance": "high" | "medium" | "low"
+  - "high": abstract explicitly mentions numerical values, measurements, calibration results, \
+or parameter tables for this parameter
+  - "medium": abstract discusses the parameter or closely related measurements but does not \
+explicitly state values
+  - "low": abstract is tangentially related or about methodology/remote sensing without data
+- "snippet": the most relevant sentence or phrase from the abstract (verbatim, max 200 chars). \
+If nothing relevant, return empty string.
+
+Return a JSON object mapping paper index (as string) to {{"relevance": "...", "snippet": "..."}}.
+Return ONLY the JSON object, no other text.
+
+Example — Parameter: "maximum leaf area index", Unit: "m2/m2"
+{{
+  "0": {{"relevance": "high", "snippet": "Peak LAI across six cultivars averaged 5.8 +/- 0.9 m2/m2"}},
+  "1": {{"relevance": "low", "snippet": ""}},
+  "2": {{"relevance": "medium", "snippet": "LAI was monitored throughout the growing season"}}
+}}
+"""
+
 SEARCH_REFINEMENT = """\
 You are a scientific literature search expert. The previous search found papers about the \
 target parameter but failed to extract any numerical values. Your task is to diagnose the \
@@ -429,6 +465,11 @@ Previous queries tried:
 
 Papers found (summaries):
 {paper_summaries}
+
+High-relevance papers found so far (these contain or likely contain numerical values):
+{high_relevance_papers}
+
+Use these as examples to generate queries that find MORE papers like them.
 
 Blackboard messages from other agents:
 {blackboard_messages}

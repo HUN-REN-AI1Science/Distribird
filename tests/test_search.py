@@ -142,6 +142,7 @@ class TestComputeRelevance:
 
     def test_recent_paper_bonus(self):
         import datetime
+
         current_year = datetime.datetime.now(datetime.timezone.utc).year
         recent = _compute_relevance(10, current_year)
         old = _compute_relevance(10, current_year - 10)
@@ -174,17 +175,22 @@ class TestDeepResearchDedicatedModel:
     async def test_uses_dedicated_model(self, mock_openai_cls, parameter):
         """Deep research uses dedicated endpoint and web prompt."""
         import json
+
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
 
         papers_data = [
-            {"title": "Paper A", "authors": ["X"], "year": 2020,
-             "doi": None, "abstract": "LAI=5", "confidence": "high"},
+            {
+                "title": "Paper A",
+                "authors": ["X"],
+                "year": 2020,
+                "doi": None,
+                "abstract": "LAI=5",
+                "confidence": "high",
+            },
         ]
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content=json.dumps(papers_data)))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps(papers_data)))]
         mock_client.chat.completions.create.return_value = mock_response
 
         s = Settings()
@@ -219,21 +225,38 @@ class TestDeepResearchConfidence:
     @pytest.mark.asyncio
     async def test_confidence_maps_to_relevance(self, mock_openai_cls, parameter, settings):
         import json
+
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
 
         papers_data = [
-            {"title": "Paper A", "authors": ["X"], "year": 2020, "doi": None,
-             "abstract": "LAI=5", "confidence": "high"},
-            {"title": "Paper B", "authors": ["Y"], "year": 2019, "doi": None,
-             "abstract": "LAI=6", "confidence": "medium"},
-            {"title": "Paper C", "authors": ["Z"], "year": 2018, "doi": None,
-             "abstract": "LAI=7", "confidence": "low"},
+            {
+                "title": "Paper A",
+                "authors": ["X"],
+                "year": 2020,
+                "doi": None,
+                "abstract": "LAI=5",
+                "confidence": "high",
+            },
+            {
+                "title": "Paper B",
+                "authors": ["Y"],
+                "year": 2019,
+                "doi": None,
+                "abstract": "LAI=6",
+                "confidence": "medium",
+            },
+            {
+                "title": "Paper C",
+                "authors": ["Z"],
+                "year": 2018,
+                "doi": None,
+                "abstract": "LAI=7",
+                "confidence": "low",
+            },
         ]
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content=json.dumps(papers_data)))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps(papers_data)))]
         mock_client.chat.completions.create.return_value = mock_response
 
         results = await llm_deep_research(parameter, settings)
@@ -266,9 +289,9 @@ class TestVerifyPaperDoi:
             doi="10.1234/verified",
             source="llm_deep_research",
         )
-        respx.get(
-            "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/verified"
-        ).mock(return_value=httpx.Response(200, json=s2_paper_response))
+        respx.get("https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/verified").mock(
+            return_value=httpx.Response(200, json=s2_paper_response)
+        )
 
         result = await verify_paper_doi(paper, settings)
         assert result is not None
@@ -287,9 +310,9 @@ class TestVerifyPaperDoi:
             doi="10.9999/fake",
             source="llm_deep_research",
         )
-        respx.get(
-            "https://api.semanticscholar.org/graph/v1/paper/DOI:10.9999/fake"
-        ).mock(return_value=httpx.Response(404))
+        respx.get("https://api.semanticscholar.org/graph/v1/paper/DOI:10.9999/fake").mock(
+            return_value=httpx.Response(404)
+        )
 
         result = await verify_paper_doi(paper, settings)
         assert result is None
@@ -312,9 +335,9 @@ class TestVerifyPaperDoi:
             doi="https://doi.org/10.1234/verified",
             source="llm_deep_research",
         )
-        respx.get(
-            "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/verified"
-        ).mock(return_value=httpx.Response(200, json=s2_paper_response))
+        respx.get("https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/verified").mock(
+            return_value=httpx.Response(200, json=s2_paper_response)
+        )
 
         result = await verify_paper_doi(paper, settings)
         assert result is not None
@@ -328,12 +351,12 @@ class TestVerifyPaperDoi:
             LiteratureEvidence(title="Invalid", doi="10.9999/fake", source="llm_deep_research"),
             LiteratureEvidence(title="No DOI", doi=None, source="llm_deep_research"),
         ]
-        respx.get(
-            "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/verified"
-        ).mock(return_value=httpx.Response(200, json=s2_paper_response))
-        respx.get(
-            "https://api.semanticscholar.org/graph/v1/paper/DOI:10.9999/fake"
-        ).mock(return_value=httpx.Response(404))
+        respx.get("https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/verified").mock(
+            return_value=httpx.Response(200, json=s2_paper_response)
+        )
+        respx.get("https://api.semanticscholar.org/graph/v1/paper/DOI:10.9999/fake").mock(
+            return_value=httpx.Response(404)
+        )
 
         verified, n_discarded = await verify_deep_research_papers(papers, settings)
         assert len(verified) == 1
@@ -348,9 +371,9 @@ class TestVerifyPaperDoi:
             doi="10.1234/timeout",
             source="llm_deep_research",
         )
-        respx.get(
-            "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/timeout"
-        ).mock(side_effect=httpx.ConnectTimeout("connection timed out"))
+        respx.get("https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/timeout").mock(
+            side_effect=httpx.ConnectTimeout("connection timed out")
+        )
 
         result = await verify_paper_doi(paper, settings)
         assert result is None

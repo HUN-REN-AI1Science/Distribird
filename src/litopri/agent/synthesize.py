@@ -93,9 +93,7 @@ def synthesize_prior(
     raw_values = [wv.value for wv in weighted_values]
 
     # Filter by constraints
-    valid_values, excluded = filter_values_by_constraints(
-        raw_values, parameter.constraints
-    )
+    valid_values, excluded = filter_values_by_constraints(raw_values, parameter.constraints)
 
     # Build weights and uncertainties for valid values only
     valid_set = set()

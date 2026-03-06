@@ -86,7 +86,8 @@ async def fetch_paper_fulltext(
 
     logger.info(
         "[fulltext] fetching pdf=%r paper=%r",
-        paper.pdf_url, paper.title[:60],
+        paper.pdf_url,
+        paper.title[:60],
     )
 
     try:
@@ -110,7 +111,9 @@ async def fetch_paper_fulltext(
                 text = _smart_truncate(raw_text)
                 logger.info(
                     "[fulltext] extracted %d/%d chars from paper=%r",
-                    len(text), len(raw_text), paper.title[:60],
+                    len(text),
+                    len(raw_text),
+                    paper.title[:60],
                 )
                 return text
             return ""
@@ -118,7 +121,8 @@ async def fetch_paper_fulltext(
     except Exception as e:
         logger.warning(
             "[fulltext] failed paper=%r error=%s",
-            paper.title[:60], e,
+            paper.title[:60],
+            e,
         )
         return ""
 
@@ -142,7 +146,8 @@ async def fetch_all_fulltexts(
 
     logger.info(
         "[fulltext] fetching %d/%d papers with PDF URLs",
-        len(papers_with_urls), len(papers),
+        len(papers_with_urls),
+        len(papers),
     )
 
     semaphore = asyncio.Semaphore(max_concurrent)

@@ -11,29 +11,29 @@ def _prior_to_r(prior: FittedPrior) -> str:
     name = prior.parameter_name.replace(" ", "_").replace("-", "_")
 
     if prior.family == DistributionFamily.NORMAL:
-        return f'{name} <- rnorm(n, mean = {p["mu"]}, sd = {p["sigma"]})'
+        return f"{name} <- rnorm(n, mean = {p['mu']}, sd = {p['sigma']})"
 
     if prior.family == DistributionFamily.TRUNCATED_NORMAL:
         return (
             f"# Requires: library(truncnorm)\n"
-            f'{name} <- rtruncnorm(n, a = {p["a"]}, b = {p["b"]}, '
-            f'mean = {p["mu"]}, sd = {p["sigma"]})'
+            f"{name} <- rtruncnorm(n, a = {p['a']}, b = {p['b']}, "
+            f"mean = {p['mu']}, sd = {p['sigma']})"
         )
 
     if prior.family == DistributionFamily.GAMMA:
-        return f'{name} <- rgamma(n, shape = {p["alpha"]}, scale = {p["scale"]})'
+        return f"{name} <- rgamma(n, shape = {p['alpha']}, scale = {p['scale']})"
 
     if prior.family == DistributionFamily.LOGNORMAL:
-        return f'{name} <- rlnorm(n, meanlog = {p["mu"]}, sdlog = {p["sigma"]})'
+        return f"{name} <- rlnorm(n, meanlog = {p['mu']}, sdlog = {p['sigma']})"
 
     if prior.family == DistributionFamily.BETA:
         return (
-            f'{name}_01 <- rbeta(n, shape1 = {p["alpha"]}, shape2 = {p["beta"]})\n'
-            f'{name} <- {name}_01 * ({p["upper"]} - {p["lower"]}) + {p["lower"]}'
+            f"{name}_01 <- rbeta(n, shape1 = {p['alpha']}, shape2 = {p['beta']})\n"
+            f"{name} <- {name}_01 * ({p['upper']} - {p['lower']}) + {p['lower']}"
         )
 
     if prior.family == DistributionFamily.UNIFORM:
-        return f'{name} <- runif(n, min = {p["lower"]}, max = {p["upper"]})'
+        return f"{name} <- runif(n, min = {p['lower']}, max = {p['upper']})"
 
     return f"# Unsupported distribution: {prior.family.value}"
 

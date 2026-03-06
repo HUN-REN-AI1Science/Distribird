@@ -107,7 +107,9 @@ class TestValuesToPrior:
     def test_single_value_with_uncertainty(self):
         """Tier 1: when uncertainty is available, use it as sigma."""
         prior = values_to_prior(
-            "test", [5.0], uncertainties=[0.3],
+            "test",
+            [5.0],
+            uncertainties=[0.3],
         )
         assert prior.params["sigma"] == 0.3
         assert prior.confidence == ConfidenceLevel.LOW

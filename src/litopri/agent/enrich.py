@@ -26,7 +26,9 @@ def research_model(domain_context: str, settings: Settings) -> str:
     extra_body = _WEB_SEARCH_EXTRA_BODY if settings.llm_web_search else None
     logger.info(
         "[LLM:model_research] domain=%r model=%s web_search=%s",
-        domain_context, settings.llm_model, settings.llm_web_search,
+        domain_context,
+        settings.llm_model,
+        settings.llm_web_search,
     )
 
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
@@ -71,7 +73,8 @@ def enrich_parameter(
 
     logger.info(
         "[LLM:enrich_param] param=%r model=%s",
-        parameter.name, settings.llm_model,
+        parameter.name,
+        settings.llm_model,
     )
 
     extra_body = _WEB_SEARCH_EXTRA_BODY if settings.llm_web_search else None
@@ -97,7 +100,9 @@ def enrich_parameter(
         )
         logger.info(
             "[LLM:enrich_param] param=%r terms=%r hints=%r",
-            parameter.name, ctx.common_terminology, ctx.search_hints,
+            parameter.name,
+            ctx.common_terminology,
+            ctx.search_hints,
         )
         return ctx
 

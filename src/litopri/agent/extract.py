@@ -74,7 +74,8 @@ def _llm_json_call(
             if attempt < max_retries:
                 logger.info(
                     "[LLM:json_retry] attempt %d/%d failed, retrying",
-                    attempt + 1, max_retries,
+                    attempt + 1,
+                    max_retries,
                 )
                 full_messages = list(full_messages) + [
                     {"role": "assistant", "content": text},
@@ -91,9 +92,7 @@ def _llm_json_call(
                 raise
 
 
-def _effective_description(
-    parameter: ParameterInput, enrichment: EnrichedContext | None
-) -> str:
+def _effective_description(parameter: ParameterInput, enrichment: EnrichedContext | None) -> str:
     """Return enriched description if available, otherwise the original."""
     if enrichment and enrichment.enriched_description:
         return enrichment.enriched_description
@@ -149,7 +148,10 @@ def extract_values_from_paper(
 
     logger.info(
         "[LLM:extract] param=%r paper=%r source=%s model=%s",
-        parameter.name, paper.title[:80], source_type, settings.llm_model,
+        parameter.name,
+        paper.title[:80],
+        source_type,
+        settings.llm_model,
     )
 
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
@@ -171,7 +173,9 @@ def extract_values_from_paper(
 
     logger.info(
         "[LLM:extract] param=%r paper=%r values_extracted=%d",
-        parameter.name, paper.title[:80], len(values),
+        parameter.name,
+        paper.title[:80],
+        len(values),
     )
     return values
 
@@ -197,13 +201,15 @@ def _parse_extracted_items(
         if not _passes_bounds_check(ev, constraint):
             logger.info(
                 "[LLM:extract] excluded out-of-bounds value=%s paper=%r",
-                ev.reported_value, paper_title[:80],
+                ev.reported_value,
+                paper_title[:80],
             )
             continue
         if not _passes_plausibility_check(ev, enrichment):
             logger.info(
                 "[LLM:extract] excluded implausible value=%s (outside typical range) paper=%r",
-                ev.reported_value, paper_title[:80],
+                ev.reported_value,
+                paper_title[:80],
             )
             continue
         values.append(ev)
@@ -246,7 +252,8 @@ def extract_values_batch(
 
     logger.info(
         "[LLM:batch_extract] param=%r papers=%d",
-        parameter.name, len(papers),
+        parameter.name,
+        len(papers),
     )
 
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
@@ -308,7 +315,9 @@ def extract_values_web_assisted(
 
     logger.info(
         "[LLM:web_extract] param=%r papers=%d (of %d)",
-        parameter.name, len(selected), len(papers),
+        parameter.name,
+        len(selected),
+        len(papers),
     )
 
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
@@ -369,7 +378,8 @@ def extract_values_web_assisted(
 
     logger.info(
         "[LLM:web_extract] param=%r papers_with_values=%d",
-        parameter.name, len(papers_with_new_values),
+        parameter.name,
+        len(papers_with_new_values),
     )
     return papers_with_new_values
 
@@ -399,9 +409,7 @@ def extract_all_values(
             len(fulltext_papers),
         )
         for paper in fulltext_papers:
-            values = extract_values_from_paper(
-                paper, parameter, settings, enrichment
-            )
+            values = extract_values_from_paper(paper, parameter, settings, enrichment)
             if values:
                 paper.extracted_values = values
 
@@ -419,10 +427,12 @@ def extract_all_values(
     papers_with_values = [p for p in papers if p.extracted_values]
 
     logger.info(
-        "[LLM:extract_all] param=%r papers_with_values=%d/%d "
-        "(fulltext=%d, abstract=%d)",
-        parameter.name, len(papers_with_values), len(papers),
-        len(fulltext_papers), len(abstract_papers),
+        "[LLM:extract_all] param=%r papers_with_values=%d/%d (fulltext=%d, abstract=%d)",
+        parameter.name,
+        len(papers_with_values),
+        len(papers),
+        len(fulltext_papers),
+        len(abstract_papers),
     )
     return papers_with_values
 
@@ -457,7 +467,8 @@ def extract_consensus_values(
 
     logger.info(
         "[LLM:consensus_extract] param=%r papers=%d",
-        parameter.name, len(papers),
+        parameter.name,
+        len(papers),
     )
 
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
@@ -503,7 +514,11 @@ def extract_consensus_values(
 
     logger.info(
         "[LLM:consensus_extract] param=%r value=%s range=%s uncertainty=%s type=%s",
-        parameter.name, consensus_value, consensus_range, uncertainty, evidence_type,
+        parameter.name,
+        consensus_value,
+        consensus_range,
+        uncertainty,
+        evidence_type,
     )
     return [ev]
 

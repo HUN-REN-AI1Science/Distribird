@@ -21,6 +21,7 @@ from litopri.models import (
 # Supporting Pydantic models
 # ---------------------------------------------------------------------------
 
+
 class MessageKind(str, Enum):
     DISCOVERY = "discovery"
     QUERY_SUGGESTION = "query_suggestion"
@@ -68,23 +69,21 @@ class IterationBudget(BaseModel):
     extraction_refinement_used: int = 0
     total_llm_calls_max: int = 30
     total_llm_calls_used: int = 0
+    snowball_max: int = 1
+    snowball_used: int = 0
+
+    def can_snowball(self) -> bool:
+        return self.snowball_used < self.snowball_max
 
     def can_refine_search(self) -> bool:
-        return (
-            self.search_refinement_used < self.search_refinement_max
-            and self.has_budget()
-        )
+        return self.search_refinement_used < self.search_refinement_max and self.has_budget()
 
     def can_cross_enrich(self) -> bool:
-        return (
-            self.cross_enrichment_used < self.cross_enrichment_max
-            and self.has_budget()
-        )
+        return self.cross_enrichment_used < self.cross_enrichment_max and self.has_budget()
 
     def can_refine_extraction(self) -> bool:
         return (
-            self.extraction_refinement_used < self.extraction_refinement_max
-            and self.has_budget()
+            self.extraction_refinement_used < self.extraction_refinement_max and self.has_budget()
         )
 
     def has_budget(self) -> bool:
@@ -101,6 +100,7 @@ class TraceEvent(BaseModel):
 # ---------------------------------------------------------------------------
 # LangGraph shared state (TypedDict)
 # ---------------------------------------------------------------------------
+
 
 class PipelineState(TypedDict, total=False):
     # Inputs (set once)
@@ -134,6 +134,7 @@ class PipelineState(TypedDict, total=False):
 # ---------------------------------------------------------------------------
 # Helper functions for manipulating state
 # ---------------------------------------------------------------------------
+
 
 def add_papers(
     state: PipelineState,
@@ -216,6 +217,7 @@ def update_quality(state: PipelineState) -> QualityMetrics:
     cv: float | None = None
     if n_vals >= 2:
         import statistics
+
         mean = statistics.mean(all_values)
         if mean != 0:
             cv = statistics.stdev(all_values) / abs(mean)
