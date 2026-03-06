@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from litopri.agent.graph import build_pipeline_graph, run_parameter_graph
+from litopri.agent.graph import NODE_META, build_pipeline_graph, run_parameter_graph
 from litopri.config import Settings
 from litopri.models import (
     ConstraintSpec,
@@ -44,6 +44,13 @@ def test_graph_compiles():
     graph = build_pipeline_graph()
     compiled = graph.compile()
     assert compiled is not None
+
+
+def test_graph_has_relevance_judge_node():
+    graph = build_pipeline_graph()
+    compiled = graph.compile()
+    node_names = set(compiled.get_graph().nodes)
+    assert "relevance_judge" in node_names
 
 
 @pytest.mark.asyncio
@@ -210,3 +217,38 @@ async def test_graph_no_papers(
     result = await run_parameter_graph(parameter, settings)
     assert not result.prior.is_informative
     assert result.papers_found == 0
+
+
+@pytest.mark.asyncio
+@patch("litopri.agent.extract.extract_all_values")
+@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("litopri.agent.search.generate_search_queries")
+async def test_graph_streams_with_callback(
+    mock_queries, mock_search, mock_extract, parameter, settings,
+):
+    """astream mode invokes callback for each node."""
+    papers = [
+        LiteratureEvidence(
+            title=f"Paper {i}",
+            doi=f"10.1/test{i}",
+            abstract=f"LAI was {4 + i * 0.5}",
+            extracted_values=[ExtractedValue(reported_value=4 + i * 0.5)],
+        )
+        for i in range(5)
+    ]
+    mock_queries.return_value = ["maize LAI"]
+    mock_search.return_value = papers
+    mock_extract.return_value = papers
+
+    visited: list[str] = []
+
+    def cb(node_name: str, state: dict):
+        visited.append(node_name)
+
+    result = await run_parameter_graph(parameter, settings, on_node_complete=cb)
+    assert result.prior is not None
+    assert "enrich" in visited
+    assert "synthesize" in visited
+    # All visited nodes should be known in NODE_META
+    for name in visited:
+        assert name in NODE_META, f"Unknown node {name!r} not in NODE_META"

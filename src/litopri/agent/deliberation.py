@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 
 from openai import OpenAI
 
@@ -153,6 +154,39 @@ def _build_deliberation_prompt(
     )
 
 
+def _remap_bracket_refs(
+    warnings: list[str],
+    old_to_new: dict[int, int],
+) -> list[str]:
+    """Rewrite [N] bracket references in warning strings.
+
+    Numbers that map to a consensus paper are replaced with the new index.
+    Numbers that don't map (excluded papers) are removed from the text.
+    """
+    bracket_re = re.compile(r"\[(\d+)\]")
+
+    def _replace(m: re.Match[str]) -> str:
+        old_num = int(m.group(1))
+        new_num = old_to_new.get(old_num)
+        return f"[{new_num}]" if new_num is not None else ""
+
+    remapped: list[str] = []
+    for w in warnings:
+        text = bracket_re.sub(_replace, w)
+        # Clean up artefacts from removed references
+        text = re.sub(r",\s*,", ",", text)
+        text = re.sub(r"\(\s*,", "(", text)
+        text = re.sub(r",\s*\)", ")", text)
+        text = re.sub(r"\(e\.g\.\s*,?\s*\)", "", text)
+        text = re.sub(r"e\.g\.\s*,\s*,", "e.g.,", text)
+        text = re.sub(r"\(\s*\)", "", text)
+        text = re.sub(r"\s{2,}", " ", text).strip()
+        # Drop warnings that became empty after removing all refs
+        if text and not re.fullmatch(r"[\s.,;:]*", text):
+            remapped.append(text)
+    return remapped
+
+
 async def deliberate(
     findings: list[AgentFinding],
     parameter: ParameterInput,
@@ -218,6 +252,16 @@ async def deliberate(
 
         consensus = [all_papers[i] for i in selected_indices if 0 <= i < len(all_papers)]
         excluded = [all_papers[i] for i in excluded_indices if 0 <= i < len(all_papers)]
+
+        # Remap bracket references in warnings from the original
+        # all_papers numbering to the consensus list numbering.
+        # Original 1-based index → consensus 1-based index, or remove
+        # if the paper wasn't selected.
+        old_to_new: dict[int, int] = {}
+        for new_idx, orig_idx in enumerate(selected_indices):
+            if 0 <= orig_idx < len(all_papers):
+                old_to_new[orig_idx + 1] = new_idx + 1  # both 1-based
+        warnings = _remap_bracket_refs(warnings, old_to_new)
 
         return DeliberationResult(
             consensus_papers=consensus,

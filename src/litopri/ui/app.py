@@ -6,12 +6,13 @@ import asyncio
 
 import streamlit as st
 
+from litopri.agent.graph import NODE_META
 from litopri.agent.pipeline import run_parameter
 from litopri.config import Settings, get_settings
-from litopri.export.json_export import export_json, export_single_json
-from litopri.export.python_export import export_python, export_single_python
-from litopri.export.r_export import export_r, export_single_r
-from litopri.models import BatchResult, ConstraintSpec, ParameterInput, PipelineResult
+from litopri.export.json_export import export_single_json
+from litopri.export.python_export import export_single_python
+from litopri.export.r_export import export_single_r
+from litopri.models import ConstraintSpec, ParameterInput, PipelineResult
 from litopri.ui.persistence import (
     clear_persisted_state,
     hydrate_session_state,
@@ -129,15 +130,27 @@ def _render_required_fields(
         missing_llm.append(("LLM Model", "llm_model_req", "llm_model", False))
 
     if use_s2 and not defaults.semantic_scholar_api_key:
-        missing_llm.append(("Semantic Scholar API Key", "s2_key_req", "semantic_scholar_api_key", True))
+        missing_llm.append((
+            "Semantic Scholar API Key", "s2_key_req",
+            "semantic_scholar_api_key", True,
+        ))
 
     if use_deep:
         if not defaults.deep_research_base_url:
-            missing_llm.append(("Deep Research Base URL", "dr_url_req", "deep_research_base_url", False))
+            missing_llm.append((
+                "Deep Research Base URL", "dr_url_req",
+                "deep_research_base_url", False,
+            ))
         if not defaults.deep_research_api_key:
-            missing_llm.append(("Deep Research API Key", "dr_key_req", "deep_research_api_key", True))
+            missing_llm.append((
+                "Deep Research API Key", "dr_key_req",
+                "deep_research_api_key", True,
+            ))
         if not defaults.deep_research_model:
-            missing_llm.append(("Deep Research Model", "dr_model_req", "deep_research_model", False))
+            missing_llm.append((
+                "Deep Research Model", "dr_model_req",
+                "deep_research_model", False,
+            ))
 
     if missing_llm:
         st.sidebar.markdown("---")
@@ -175,7 +188,10 @@ def _render_override_fields(
     has_oa = bool(defaults.openalex_email)
 
     # Only show the toggle if there's something to override
-    has_any_configured = has_llm or (use_s2 and has_s2) or (use_deep and has_deep) or (use_openalex and has_oa)
+    has_any_configured = (
+        has_llm or (use_s2 and has_s2)
+        or (use_deep and has_deep) or (use_openalex and has_oa)
+    )
     if not has_any_configured:
         return {}
 
@@ -192,7 +208,9 @@ def _render_override_fields(
         st.sidebar.subheader("LLM Settings")
         st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
         overrides["llm_base_url"] = _secret_input("Base URL", "llm_url_ov", defaults.llm_base_url)
-        overrides["llm_api_key"] = _secret_input("API Key", "llm_key_ov", defaults.llm_api_key, password=True)
+        overrides["llm_api_key"] = _secret_input(
+            "API Key", "llm_key_ov", defaults.llm_api_key, password=True,
+        )
         overrides["llm_model"] = _secret_input("Model", "llm_model_ov", defaults.llm_model)
 
     if use_s2 and has_s2:
@@ -204,11 +222,16 @@ def _render_override_fields(
     if use_deep and has_deep:
         st.sidebar.subheader("Deep Research Model")
         st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
-        overrides["deep_research_base_url"] = _secret_input("Base URL", "dr_url_ov", defaults.deep_research_base_url)
-        overrides["deep_research_api_key"] = _secret_input(
-            "API Key", "dr_key_ov", defaults.deep_research_api_key, password=True
+        overrides["deep_research_base_url"] = _secret_input(
+            "Base URL", "dr_url_ov", defaults.deep_research_base_url,
         )
-        overrides["deep_research_model"] = _secret_input("Model", "dr_model_ov", defaults.deep_research_model)
+        overrides["deep_research_api_key"] = _secret_input(
+            "API Key", "dr_key_ov",
+            defaults.deep_research_api_key, password=True,
+        )
+        overrides["deep_research_model"] = _secret_input(
+            "Model", "dr_model_ov", defaults.deep_research_model,
+        )
 
     if use_openalex and has_oa:
         st.sidebar.subheader("OpenAlex")
@@ -366,6 +389,37 @@ def _collect_references(result: PipelineResult) -> list:
     return prior.evidence if prior.evidence else []
 
 
+def _render_single_export(safe_name: str, result: PipelineResult):
+    """Per-result export with tabs for each format."""
+    st.subheader("Export")
+    tab_json, tab_r, tab_py = st.tabs(["JSON", "R", "Python"])
+    with tab_json:
+        json_str = export_single_json(result)
+        st.code(json_str, language="json")
+        st.download_button(
+            f"Download {safe_name}.json", json_str,
+            file_name=f"{safe_name}.json", mime="application/json",
+            key=f"dl_json_{safe_name}", use_container_width=True,
+        )
+    with tab_r:
+        r_str = export_single_r(result)
+        st.code(r_str, language="r")
+        st.download_button(
+            f"Download {safe_name}.R", r_str,
+            file_name=f"{safe_name}.R", mime="text/plain",
+            key=f"dl_r_{safe_name}", use_container_width=True,
+        )
+    with tab_py:
+        py_str = export_single_python(result)
+        st.code(py_str, language="python")
+        st.download_button(
+            f"Download {safe_name}.py", py_str,
+            file_name=f"{safe_name}.py", mime="text/x-python",
+            key=f"dl_py_{safe_name}", use_container_width=True,
+        )
+
+
+
 def render_result(result: PipelineResult):
     """Render a pipeline result."""
     prior = result.prior
@@ -403,8 +457,7 @@ def render_result(result: PipelineResult):
         st.write(f"**Papers found:** {result.papers_found}")
         st.write(f"**Values extracted:** {result.values_extracted}")
 
-    # References — show all consensus papers so bracket indices from
-    # deliberation warnings (e.g. [5], [12]) match the displayed list.
+    # References
     all_refs = _collect_references(result)
     if all_refs:
         st.subheader("References")
@@ -436,6 +489,28 @@ def render_result(result: PipelineResult):
                     values_strs.append(s)
             if values_strs:
                 st.caption(f"Extracted values: {'; '.join(values_strs)}")
+
+    # Excluded papers (from deliberation) shown in a collapsed, muted section
+    excluded = (
+        result.deliberation.excluded_papers
+        if result.deliberation else []
+    )
+    if excluded:
+        with st.expander(
+            f"Excluded papers ({len(excluded)} reviewed but not used)"
+        ):
+            for e in excluded:
+                authors = ", ".join(e.authors[:3])
+                if len(e.authors) > 3:
+                    authors += " et al."
+                year = e.year or "n.d."
+                doi_link = (
+                    f"https://doi.org/{e.doi}" if e.doi else None
+                )
+                line = f"{authors} ({year}). *{e.title}*."
+                if doi_link:
+                    line += f" [DOI]({doi_link})"
+                st.caption(line)
 
     # Distribution plot
     with st.expander("Distribution Plot"):
@@ -480,27 +555,8 @@ def render_result(result: PipelineResult):
             st.error(f"Could not generate plot: {e}")
 
     # Export
-    safe_name = result.parameter.name.replace(" ", "_")
-    st.subheader("Export")
-    tab_json, tab_r, tab_py = st.tabs(["JSON", "R", "Python"])
-    with tab_json:
-        json_str = export_single_json(result)
-        st.code(json_str, language="json")
-        st.download_button("Download JSON", json_str,
-                           file_name=f"{safe_name}.json", mime="application/json",
-                           key=f"dl_json_{safe_name}")
-    with tab_r:
-        r_str = export_single_r(result)
-        st.code(r_str, language="r")
-        st.download_button("Download R", r_str,
-                           file_name=f"{safe_name}.R", mime="text/plain",
-                           key=f"dl_r_{safe_name}")
-    with tab_py:
-        py_str = export_single_python(result)
-        st.code(py_str, language="python")
-        st.download_button("Download Python", py_str,
-                           file_name=f"{safe_name}.py", mime="text/x-python",
-                           key=f"dl_py_{safe_name}")
+    safe_name = result.parameter.name.replace(" ", "_").lower()
+    _render_single_export(safe_name, result)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -608,30 +664,6 @@ def render_results_section():
             render_result(result)
             st.divider()
 
-    # Batch export
-    all_results = list(st.session_state.results.values())
-    if all_results:
-        batch = BatchResult(
-            results=all_results,
-            metadata={"n_parameters": len(all_results)},
-        )
-        st.header("Export All Results")
-        col1, col2, col3 = st.columns(3)
-        col1.download_button(
-            "Download All (JSON)", export_json(batch),
-            file_name="litopri_priors.json", mime="application/json",
-            key="dl_all_json",
-        )
-        col2.download_button(
-            "Download All (R)", export_r(batch),
-            file_name="litopri_priors.R", mime="text/plain",
-            key="dl_all_r",
-        )
-        col3.download_button(
-            "Download All (Python)", export_python(batch),
-            file_name="litopri_priors.py", mime="text/x-python",
-            key="dl_all_py",
-        )
 
 
 def process_all_parameters(settings: Settings):
@@ -651,11 +683,9 @@ def process_all_parameters(settings: Settings):
     st.session_state.is_running = True
     st.session_state.results = {}
     n = len(valid_params)
-    progress_bar = st.progress(0, text=f"Processing 0/{n} parameters...")
+    overall_bar = st.progress(0, text=f"Processing 0/{n} parameters...")
 
     for i, param in enumerate(valid_params):
-        progress_bar.progress(i / n, text=f"Parameter {i + 1}/{n}: {param['name']}")
-
         parameter = ParameterInput(
             name=param["name"],
             description=param["description"],
@@ -668,18 +698,74 @@ def process_all_parameters(settings: Settings):
         )
 
         with st.status(f"Processing: {param['name']}", expanded=True) as status:
-            st.write("Searching literature and fitting distribution...")
+            step_label = st.empty()
+            step_detail = st.empty()
+            step_progress = st.empty()
+
+            completed_nodes: set[str] = set()
+
+            def on_node_complete(
+                node_name: str,
+                state: dict,
+                _completed=completed_nodes,
+                _step_label=step_label,
+                _step_detail=step_detail,
+                _step_progress=step_progress,
+                _overall_bar=overall_bar,
+                _i=i,
+                _n=n,
+                _param=param,
+            ):
+                label, weight = NODE_META.get(node_name, (node_name, 0.0))
+                is_retry = node_name in _completed
+                display = f"{label} (retry)" if is_retry else label
+                _step_label.markdown(f"**{display}...**")
+
+                # Build detail text from accumulated state
+                parts = []
+                papers = state.get("all_papers", [])
+                if papers:
+                    parts.append(f"{len(papers)} papers")
+                pwv = state.get("papers_with_values", [])
+                if pwv:
+                    nv = sum(len(p.extracted_values) for p in pwv)
+                    parts.append(f"{nv} values")
+                queries = state.get("all_queries_tried", [])
+                if queries:
+                    parts.append(f"{len(queries)} queries")
+                _step_detail.text(" | ".join(parts) if parts else "")
+
+                # Update per-parameter progress (never decreases)
+                if not is_retry and weight > 0:
+                    _completed.add(node_name)
+                pct = sum(
+                    NODE_META[nd][1] for nd in _completed if nd in NODE_META
+                )
+                _step_progress.progress(min(pct, 1.0))
+
+                # Update overall bar
+                param_pct = (_i + pct) / _n
+                _overall_bar.progress(
+                    min(param_pct, 1.0),
+                    text=f"Parameter {_i + 1}/{_n}: {_param['name']} — {display}",
+                )
+
             try:
-                result = asyncio.run(run_parameter(parameter, settings))
+                result = asyncio.run(
+                    run_parameter(parameter, settings, on_node_complete)
+                )
             except Exception as e:
                 st.error(f"Error processing {param['name']}: {e}")
                 status.update(label=f"Error: {param['name']}", state="error")
                 continue
+
+            step_label.markdown("**Complete**")
+            step_progress.progress(1.0)
             status.update(label=f"Complete: {param['name']}", state="complete")
 
         st.session_state.results[param["id"]] = result
 
-    progress_bar.progress(1.0, text="All parameters processed!")
+    overall_bar.progress(1.0, text="All parameters processed!")
     st.session_state.is_running = False
 
 

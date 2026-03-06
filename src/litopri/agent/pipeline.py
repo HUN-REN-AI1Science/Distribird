@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from litopri.agent.graph import run_parameter_graph
+from litopri.agent.graph import ProgressCallback, run_parameter_graph
 from litopri.config import Settings, get_settings
 from litopri.models import (
     BatchResult,
@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 async def run_parameter(
     parameter: ParameterInput,
     settings: Settings | None = None,
+    on_node_complete: ProgressCallback = None,
 ) -> PipelineResult:
     """Run the LangGraph pipeline for a single parameter."""
-    return await run_parameter_graph(parameter, settings)
+    return await run_parameter_graph(parameter, settings, on_node_complete)
 
 
 async def run_batch(

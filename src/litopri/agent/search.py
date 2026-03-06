@@ -159,6 +159,181 @@ async def search_all_queries(
     return result
 
 
+_RELEVANCE_LLM_SCORE = {"high": 0.9, "medium": 0.5, "low": 0.1}
+
+
+def judge_paper_relevance(
+    papers: list[LiteratureEvidence],
+    parameter: ParameterInput,
+    settings: Settings,
+    enrichment: EnrichedContext | None = None,
+    batch_size: int = 10,
+) -> int:
+    """Judge relevance of papers via LLM. Updates papers in-place.
+
+    Returns the number of LLM calls made.
+    """
+    from litopri.agent.prompts import RELEVANCE_JUDGMENT
+
+    unjudged = [p for p in papers if not p.relevance_snippet]
+    if not unjudged:
+        return 0
+
+    enrichment_block = _build_enrichment_block(enrichment)
+    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    llm_calls = 0
+
+    for start in range(0, len(unjudged), batch_size):
+        batch = unjudged[start : start + batch_size]
+        papers_block = "\n".join(
+            f"[{i}] {p.title} ({p.year}): {(p.abstract or '')[:300]}"
+            for i, p in enumerate(batch)
+        )
+
+        prompt = RELEVANCE_JUDGMENT.format(
+            name=parameter.name,
+            description=parameter.description,
+            unit=parameter.unit,
+            domain_context=parameter.domain_context,
+            enrichment_block=enrichment_block,
+            papers_block=papers_block,
+        )
+
+        try:
+            raw = _llm_json_call(
+                client, settings.llm_model,
+                [{"role": "user", "content": prompt}],
+                temperature=0.0,
+            )
+            llm_calls += 1
+        except Exception as e:
+            logger.warning("[relevance] LLM call failed: %s", e)
+            llm_calls += 1
+            continue
+
+        if not isinstance(raw, dict):
+            continue
+
+        for i, paper in enumerate(batch):
+            entry = raw.get(str(i), {})
+            if not isinstance(entry, dict):
+                continue
+            level = entry.get("relevance", "low")
+            snippet = entry.get("snippet", "")
+            llm_score = _RELEVANCE_LLM_SCORE.get(level, 0.1)
+            citation_score = paper.relevance_score
+            paper.relevance_score = 0.7 * llm_score + 0.3 * citation_score
+            paper.relevance_snippet = snippet or ""
+
+    return llm_calls
+
+
+async def fetch_citations(
+    paper_id: str,
+    settings: Settings,
+    direction: str = "citations",
+    limit: int = 10,
+) -> list[LiteratureEvidence]:
+    """Fetch citing or referenced papers from S2 API.
+
+    direction: "citations" (forward) or "references" (backward).
+    """
+    headers = {}
+    if settings.semantic_scholar_api_key:
+        headers["x-api-key"] = settings.semantic_scholar_api_key
+
+    url = (
+        f"{settings.semantic_scholar_base_url}/paper/{paper_id}/{direction}"
+        f"?fields=title,authors,year,externalIds,abstract,citationCount,openAccessPdf"
+        f"&limit={limit}"
+    )
+
+    logger.info("[S2:snowball] paper=%s direction=%s limit=%d", paper_id, direction, limit)
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.extraction_timeout) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning("[S2:snowball] failed paper=%s: %s", paper_id, e)
+        return []
+
+    source_tag = f"snowball_{direction.rstrip('s')}"  # snowball_citation or snowball_reference
+    papers: list[LiteratureEvidence] = []
+    for entry in data.get("data") or []:
+        item = entry.get("citingPaper" if direction == "citations" else "citedPaper", entry)
+        if not isinstance(item, dict) or not item.get("title"):
+            continue
+
+        oa_pdf = item.get("openAccessPdf") or {}
+        pdf_url = oa_pdf.get("url") if isinstance(oa_pdf, dict) else None
+        if pdf_url is None:
+            continue
+
+        ext_ids = item.get("externalIds") or {}
+        doi = ext_ids.get("DOI") if isinstance(ext_ids, dict) else None
+
+        authors = []
+        for a in item.get("authors") or []:
+            if isinstance(a, dict) and "name" in a:
+                authors.append(a["name"])
+
+        citation_count = item.get("citationCount") or 0
+        year = item.get("year")
+
+        papers.append(
+            LiteratureEvidence(
+                title=item["title"],
+                authors=authors,
+                year=year,
+                doi=doi,
+                abstract=item.get("abstract") or "",
+                pdf_url=pdf_url,
+                relevance_score=_compute_relevance(citation_count, year),
+                verified=True,
+                source=source_tag,
+            )
+        )
+
+    logger.info("[S2:snowball] paper=%s direction=%s found=%d", paper_id, direction, len(papers))
+    return papers
+
+
+async def snowball_papers(
+    seed_papers: list[LiteratureEvidence],
+    settings: Settings,
+    existing_dois: set[str],
+    max_seeds: int = 3,
+    limit_per_seed: int = 10,
+) -> list[LiteratureEvidence]:
+    """Snowball from top seed papers via forward + backward citations.
+
+    Returns deduplicated new papers (excluding those in existing_dois).
+    """
+    seeds = sorted(seed_papers, key=lambda p: p.relevance_score, reverse=True)[:max_seeds]
+    all_new: list[LiteratureEvidence] = []
+    seen: set[str] = set(existing_dois)
+
+    for seed in seeds:
+        if not seed.doi:
+            continue
+        paper_id = f"DOI:{seed.doi}"
+        for direction in ("citations", "references"):
+            await asyncio.sleep(1.1)  # S2 rate limit
+            found = await fetch_citations(paper_id, settings, direction, limit_per_seed)
+            for p in found:
+                doi = p.doi.strip().lower() if p.doi else None
+                if doi and doi in seen:
+                    continue
+                if doi:
+                    seen.add(doi)
+                all_new.append(p)
+
+    logger.info("[snowball] seeds=%d new_papers=%d", len(seeds), len(all_new))
+    return all_new
+
+
 def _build_enrichment_block(enrichment: EnrichedContext | None) -> str:
     """Build the enrichment block for the search query prompt."""
     if enrichment is None or (not enrichment.common_terminology and not enrichment.search_hints):
