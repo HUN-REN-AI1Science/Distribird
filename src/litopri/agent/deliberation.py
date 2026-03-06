@@ -12,6 +12,7 @@ from litopri.agent.agents import (
     DeepResearchAgent,
     OpenAlexAgent,
     SemanticScholarAgent,
+    SourceAgent,
     WebSearchAgent,
 )
 from litopri.agent.extract import _llm_json_call
@@ -35,7 +36,7 @@ async def run_source_agents(
     enrichment: EnrichedContext | None = None,
 ) -> list[AgentFinding]:
     """Run enabled source agents in parallel, collecting findings."""
-    agents = []
+    agents: list[SourceAgent] = []
     if settings.enable_semantic_scholar:
         agents.append(SemanticScholarAgent())
     if settings.enable_web_search_agent and settings.llm_web_search:
@@ -60,13 +61,14 @@ async def run_source_agents(
 
     findings: list[AgentFinding] = []
     for agent, result in zip(agents, results):
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             logger.warning(
                 "[deliberation] agent %s failed: %s",
                 agent.name,
                 result,
             )
         else:
+            assert isinstance(result, AgentFinding)
             findings.append(result)
 
     return findings

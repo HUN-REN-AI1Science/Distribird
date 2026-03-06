@@ -36,27 +36,26 @@ LitoPri closes that gap: **describe your parameter, get a defensible prior in se
 ## Architecture
 
 ```
-                            ┌─────────────────────────────┐
-                            │        LangGraph DAG        │
-                            └─────────────────────────────┘
+                        ┌──────────────────────────────┐
+                        │        LangGraph DAG         │
+                        └──────────────────────────────┘
 
- START ─► Enrich ─► QueryGen ─► Search ─► RelevanceJudge ───┬─► CrossEnrich ───┐
-                                  ▲                         │                  │
-                                  │                         └─► FetchFulltext ◄┘
-                          RefineSearch                              │
-                                  ▲                             Extract
-                                  │                                 │
-                                  │         RefineExtraction ─► QualityGate
-                                  │                             │       │
-                                  └─────────────────────────────┘       ▼
-                                                                   Synthesize
-                                                                        │
-                                                                       END
+START ─► Enrich ─► QueryGen ─► Search ─► RelevanceJudge ──┬► CrossEnrich ───┐
+                                 ▲                        │                 │
+                                 │                        └► FetchFulltext ◄┘
+                          RefineSearch                            │
+                                 ▲                            Extract
+                                 │                                │
+                                 │   RefineExtraction ◄─── QualityGate
+                                 │         │                │     │
+                                 │         └────────────────┘     │
+                                 │                                ▼
+                                 └─────────────────────────  Synthesize ─► END
 ```
 
 **Multi-agent search** &mdash; Semantic Scholar, OpenAlex, and LLM deep-research agents run concurrently; a moderator LLM selects the best papers via deliberation.
 
-**Relevance filtering** &mdash; An LLM-based relevance judge scores and filters papers before extraction, routing high-relevance results through optional cross-enrichment (citation snowballing + follow-up queries).
+**Relevance scoring** &mdash; An LLM-based relevance judge scores each paper before extraction. When multiple high-relevance papers are found, the pipeline routes through cross-enrichment (citation snowballing + follow-up queries) to discover additional sources.
 
 **Feedback loops** &mdash; A quality gate inspects extraction results and can trigger search refinement (new queries) or extraction refinement (web-assisted re-extraction) before falling through to synthesis.
 

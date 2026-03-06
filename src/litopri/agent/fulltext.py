@@ -26,11 +26,11 @@ _PRIORITY_SECTIONS = re.compile(
 
 def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
     """Extract text from PDF bytes using PyMuPDF."""
-    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")  # type: ignore[no-untyped-call]
     pages = []
-    for page in doc:
+    for page in doc:  # type: ignore[attr-defined]
         pages.append(page.get_text())
-    doc.close()
+    doc.close()  # type: ignore[no-untyped-call]
     return "\n".join(pages)
 
 

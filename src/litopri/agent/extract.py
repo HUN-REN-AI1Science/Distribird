@@ -46,7 +46,7 @@ def _llm_json_call(
     messages: list[dict[str, str]],
     temperature: float = 0.0,
     max_retries: int = 2,
-    extra_body: dict | None = None,
+    extra_body: dict[str, object] | None = None,
 ) -> object:
     """Call LLM and parse JSON response, retrying on parse failures.
 
@@ -56,16 +56,13 @@ def _llm_json_call(
     # Prepend system message to enforce JSON-only output
     full_messages = [_JSON_SYSTEM_MSG] + list(messages)
 
-    create_kwargs: dict = {
-        "model": model,
-        "messages": full_messages,
-        "temperature": temperature,
-    }
-    if extra_body:
-        create_kwargs["extra_body"] = extra_body
-
     for attempt in range(max_retries + 1):
-        response = client.chat.completions.create(**create_kwargs)
+        response = client.chat.completions.create(
+            model=model,
+            messages=full_messages,  # type: ignore[arg-type]
+            temperature=temperature,
+            extra_body=extra_body,
+        )
         text = response.choices[0].message.content or ""
         text = _strip_code_fences(text)
         try:
@@ -87,9 +84,9 @@ def _llm_json_call(
                         ),
                     },
                 ]
-                create_kwargs["messages"] = full_messages
             else:
                 raise
+    return None
 
 
 def _effective_description(parameter: ParameterInput, enrichment: EnrichedContext | None) -> str:
@@ -181,7 +178,7 @@ def extract_values_from_paper(
 
 
 def _parse_extracted_items(
-    raw: list,
+    raw: list[object],
     constraint: ConstraintSpec,
     paper_title: str,
     enrichment: EnrichedContext | None = None,
@@ -321,7 +318,7 @@ def extract_values_web_assisted(
     )
 
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
-    extra_body = {"web_search_options": {"search_context_size": "high"}}
+    extra_body: dict[str, object] = {"web_search_options": {"search_context_size": "high"}}
 
     papers_with_new_values: list[LiteratureEvidence] = []
 

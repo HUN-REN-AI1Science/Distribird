@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import streamlit as st
 
@@ -20,7 +21,7 @@ from litopri.ui.persistence import (
 )
 
 
-def inject_custom_css():
+def inject_custom_css() -> None:
     """Inject professional styling."""
     st.markdown(
         """
@@ -452,7 +453,7 @@ def _render_single_export(safe_name: str, result: PipelineResult) -> None:
         )
 
 
-def render_result(result: PipelineResult):
+def render_result(result: PipelineResult) -> None:
     """Render a pipeline result."""
     prior = result.prior
 
@@ -542,7 +543,7 @@ def render_result(result: PipelineResult):
         try:
             import matplotlib.pyplot as plt
             import numpy as np
-            from scipy import stats
+            from scipy import stats  # type: ignore[import-untyped]
 
             fig, ax = plt.subplots(figsize=(8, 4))
             p = prior.params
@@ -587,7 +588,7 @@ def render_result(result: PipelineResult):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def init_session_state():
+def init_session_state() -> None:
     """Initialize session state keys for dynamic parameter rows."""
     if "params" not in st.session_state:
         st.session_state.params = [
@@ -608,7 +609,7 @@ def init_session_state():
         st.session_state.is_running = False
 
 
-def add_parameter_row():
+def add_parameter_row() -> None:
     """Callback to add a new parameter row."""
     row_id = st.session_state.next_id
     st.session_state.next_id += 1
@@ -624,13 +625,13 @@ def add_parameter_row():
     )
 
 
-def remove_parameter_row(row_id: int):
+def remove_parameter_row(row_id: int) -> None:
     """Callback to remove a parameter row by ID."""
     st.session_state.params = [p for p in st.session_state.params if p["id"] != row_id]
     st.session_state.results.pop(row_id, None)
 
 
-def sync_param_values():
+def sync_param_values() -> None:
     """Read current widget values back into the params list."""
     for param in st.session_state.params:
         rid = param["id"]
@@ -641,7 +642,7 @@ def sync_param_values():
         param["upper_bound"] = st.session_state.get(f"upper_{rid}")
 
 
-def render_parameter_rows():
+def render_parameter_rows() -> None:
     """Render the dynamic parameter table with column headers."""
     is_running = st.session_state.is_running
 
@@ -710,7 +711,7 @@ def render_parameter_rows():
             )
 
 
-def render_results_section():
+def render_results_section() -> None:
     """Show all completed results."""
     st.header("Results")
     for param in st.session_state.params:
@@ -722,7 +723,7 @@ def render_results_section():
             st.divider()
 
 
-def process_all_parameters(settings: Settings):
+def process_all_parameters(settings: Settings) -> None:
     """Process all valid parameters sequentially with progress."""
     sync_param_values()
     domain_context = st.session_state.get("domain_context", "")
@@ -761,16 +762,16 @@ def process_all_parameters(settings: Settings):
 
             def on_node_complete(
                 node_name: str,
-                state: dict,
-                _completed=completed_nodes,
-                _step_label=step_label,
-                _step_detail=step_detail,
-                _step_progress=step_progress,
-                _overall_bar=overall_bar,
-                _i=i,
-                _n=n,
-                _param=param,
-            ):
+                state: dict[str, Any],
+                _completed: set[str] = completed_nodes,
+                _step_label: Any = step_label,
+                _step_detail: Any = step_detail,
+                _step_progress: Any = step_progress,
+                _overall_bar: Any = overall_bar,
+                _i: int = i,
+                _n: int = n,
+                _param: dict[str, Any] = param,
+            ) -> None:
                 label, weight = NODE_META.get(node_name, (node_name, 0.0))
                 is_retry = node_name in _completed
                 display = f"{label} (retry)" if is_retry else label
@@ -778,14 +779,14 @@ def process_all_parameters(settings: Settings):
 
                 # Build detail text from accumulated state
                 parts = []
-                papers = state.get("all_papers", [])
+                papers: Any = state.get("all_papers", [])
                 if papers:
                     parts.append(f"{len(papers)} papers")
-                pwv = state.get("papers_with_values", [])
+                pwv: Any = state.get("papers_with_values", [])
                 if pwv:
                     nv = sum(len(p.extracted_values) for p in pwv)
                     parts.append(f"{nv} values")
-                queries = state.get("all_queries_tried", [])
+                queries: Any = state.get("all_queries_tried", [])
                 if queries:
                     parts.append(f"{len(queries)} queries")
                 _step_detail.text(" | ".join(parts) if parts else "")
@@ -820,7 +821,7 @@ def process_all_parameters(settings: Settings):
     st.session_state.is_running = False
 
 
-def main():
+def main() -> None:
     st.set_page_config(page_title="LitoPri", page_icon="📊", layout="wide")
     inject_custom_css()
 

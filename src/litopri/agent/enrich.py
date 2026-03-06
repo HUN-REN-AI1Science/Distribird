@@ -12,7 +12,7 @@ from litopri.models import EnrichedContext, ParameterInput
 
 logger = logging.getLogger(__name__)
 
-_WEB_SEARCH_EXTRA_BODY = {
+_WEB_SEARCH_EXTRA_BODY: dict[str, object] = {
     "web_search_options": {"search_context_size": "high"},
 }
 

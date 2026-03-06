@@ -53,7 +53,7 @@ async def search_semantic_scholar(
 
     # Request extra papers to compensate for OA filtering
     api_limit = min(limit * 2, 100)
-    params = {
+    params: dict[str, str | int] = {
         "query": query,
         "limit": api_limit,
         "fields": "title,authors,year,externalIds,abstract,citationCount,openAccessPdf",

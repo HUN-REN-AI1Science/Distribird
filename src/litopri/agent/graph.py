@@ -44,7 +44,7 @@ NODE_META: dict[str, tuple[str, float]] = {
 }
 
 
-def build_pipeline_graph() -> StateGraph:
+def build_pipeline_graph() -> StateGraph:  # type: ignore[type-arg]
     """Build and compile the LangGraph pipeline."""
     graph = StateGraph(PipelineState)
 

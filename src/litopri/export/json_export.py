@@ -7,7 +7,7 @@ import json
 from litopri.models import BatchResult, PipelineResult
 
 
-def result_to_dict(result: PipelineResult) -> dict:
+def result_to_dict(result: PipelineResult) -> dict[str, object]:
     """Convert a pipeline result to a JSON-serializable dict."""
     return {
         "parameter": result.parameter.name,

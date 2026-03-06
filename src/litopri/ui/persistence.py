@@ -51,13 +51,13 @@ _SIMPLE_KEYS: list[str] = [
 ]
 
 
-def hydrate_session_state():
+def hydrate_session_state() -> object:
     """Restore session state from localStorage on first render.
 
     Must be called at the top of ``main()`` before any widgets render.
     Returns the ``LocalStorage`` instance for reuse in ``save_session_state``.
     """
-    from streamlit_local_storage import LocalStorage
+    from streamlit_local_storage import LocalStorage  # type: ignore[import-untyped]
 
     ls = LocalStorage()
 
@@ -85,7 +85,7 @@ def hydrate_session_state():
     return ls
 
 
-def save_session_state(ls) -> None:
+def save_session_state(ls: object) -> None:
     """Persist current session state to localStorage.
 
     Called at the end of ``main()`` after all widgets have rendered.
@@ -97,14 +97,14 @@ def save_session_state(ls) -> None:
             if key in st.session_state:
                 blob[key] = st.session_state[key]
 
-        ls.setItem(STORAGE_KEY, json.dumps(blob, default=str))
+        ls.setItem(STORAGE_KEY, json.dumps(blob, default=str))  # type: ignore[attr-defined]
     except Exception:
         logger.debug("Failed to save to localStorage", exc_info=True)
 
 
-def clear_persisted_state(ls) -> None:
+def clear_persisted_state(ls: object) -> None:
     """Remove all persisted state from localStorage."""
     try:
-        ls.deleteAll()
+        ls.deleteAll()  # type: ignore[attr-defined]
     except Exception:
         logger.debug("Failed to clear localStorage", exc_info=True)

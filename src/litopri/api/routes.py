@@ -37,12 +37,14 @@ def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)) ->
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
 @app.post("/api/v1/parameter")
-async def process_parameter(parameter: ParameterInput, _user: str = Depends(verify_credentials)):
+async def process_parameter(
+    parameter: ParameterInput, _user: str = Depends(verify_credentials)
+) -> dict[str, object]:
     """Process a single parameter and return its fitted prior."""
     settings = get_settings()
     try:
@@ -55,7 +57,7 @@ async def process_parameter(parameter: ParameterInput, _user: str = Depends(veri
 @app.post("/api/v1/batch")
 async def process_batch(
     parameters: list[ParameterInput], _user: str = Depends(verify_credentials)
-):
+) -> dict[str, object]:
     """Process multiple parameters and return fitted priors."""
     settings = get_settings()
     try:
@@ -68,7 +70,7 @@ async def process_batch(
 @app.post("/api/v1/export/json")
 async def export_json_endpoint(
     parameters: list[ParameterInput], _user: str = Depends(verify_credentials)
-):
+) -> dict[str, str]:
     """Process parameters and export as JSON."""
     settings = get_settings()
     batch = await run_batch(parameters, settings)
@@ -78,7 +80,7 @@ async def export_json_endpoint(
 @app.post("/api/v1/export/r")
 async def export_r_endpoint(
     parameters: list[ParameterInput], _user: str = Depends(verify_credentials)
-):
+) -> dict[str, str]:
     """Process parameters and export as R script."""
     settings = get_settings()
     batch = await run_batch(parameters, settings)
@@ -88,14 +90,14 @@ async def export_r_endpoint(
 @app.post("/api/v1/export/python")
 async def export_python_endpoint(
     parameters: list[ParameterInput], _user: str = Depends(verify_credentials)
-):
+) -> dict[str, str]:
     """Process parameters and export as Python script."""
     settings = get_settings()
     batch = await run_batch(parameters, settings)
     return {"export": export_python(batch)}
 
 
-def main():
+def main() -> None:
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

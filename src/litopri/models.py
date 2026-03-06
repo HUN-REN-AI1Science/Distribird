@@ -62,11 +62,11 @@ class LiteratureEvidence(BaseModel):
     year: int | None = None
     doi: str | None = None
     abstract: str = ""
-    full_text: str = Field("", description="Full paper text (if available)")
+    full_text: str = Field(default="", description="Full paper text (if available)")
     pdf_url: str | None = None
     extracted_values: list[ExtractedValue] = Field(default_factory=list)
     relevance_score: float = Field(0.0, ge=0.0, le=1.0)
-    relevance_snippet: str = Field("", description="Most relevant abstract snippet")
+    relevance_snippet: str = Field(default="", description="Most relevant abstract snippet")
     verified: bool = Field(False, description="Whether verified against external API")
     source: str = Field("unknown", description="Origin: 'semantic_scholar' or 'llm_deep_research'")
 
@@ -109,7 +109,7 @@ class EnrichedContext(BaseModel):
     enriched_description: str = ""
     search_hints: list[str] = Field(default_factory=list)
     application_context: str = Field(
-        "",
+        default="",
         description="Extracted specifics from domain context (region, species, etc.)",
     )
     context_keywords: list[str] = Field(

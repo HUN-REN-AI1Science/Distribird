@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 
 
 def _settings_from_state(state: PipelineState) -> Settings:
-    return Settings(**state["settings_dict"])
+    return Settings(**state["settings_dict"])  # type: ignore[arg-type]
 
 
-def _trace(node: str, start: float, summary: dict | None = None) -> TraceEvent:
+def _trace(node: str, start: float, summary: dict[str, object] | None = None) -> TraceEvent:
     return TraceEvent(
         node=node,
         timestamp=start,
@@ -41,7 +41,7 @@ def _trace(node: str, start: float, summary: dict | None = None) -> TraceEvent:
 # ---------------------------------------------------------------------------
 
 
-async def enrich_node(state: PipelineState) -> dict:
+async def enrich_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]
@@ -66,7 +66,7 @@ async def enrich_node(state: PipelineState) -> dict:
     }
 
 
-async def query_gen_node(state: PipelineState) -> dict:
+async def query_gen_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]
@@ -88,7 +88,7 @@ async def query_gen_node(state: PipelineState) -> dict:
     }
 
 
-async def search_node(state: PipelineState) -> dict:
+async def search_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]
@@ -174,7 +174,7 @@ async def search_node(state: PipelineState) -> dict:
         }
 
 
-async def relevance_judge_node(state: PipelineState) -> dict:
+async def relevance_judge_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]
@@ -209,7 +209,7 @@ async def relevance_judge_node(state: PipelineState) -> dict:
     }
 
 
-async def fetch_fulltext_node(state: PipelineState) -> dict:
+async def fetch_fulltext_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     papers = state.get("all_papers", [])
@@ -228,7 +228,7 @@ async def fetch_fulltext_node(state: PipelineState) -> dict:
     }
 
 
-async def extract_node(state: PipelineState) -> dict:
+async def extract_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]
@@ -299,7 +299,7 @@ async def extract_node(state: PipelineState) -> dict:
     }
 
 
-async def quality_gate_node(state: PipelineState) -> dict:
+async def quality_gate_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     traces = list(state.get("trace_events", []))
     quality = update_quality(state)
@@ -320,7 +320,7 @@ async def quality_gate_node(state: PipelineState) -> dict:
     }
 
 
-async def synthesize_node(state: PipelineState) -> dict:
+async def synthesize_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     parameter = state["parameter"]
     papers_with_values = state.get("papers_with_values", [])
@@ -360,7 +360,7 @@ async def synthesize_node(state: PipelineState) -> dict:
 # ---------------------------------------------------------------------------
 
 
-async def refine_search_node(state: PipelineState) -> dict:
+async def refine_search_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]
@@ -475,7 +475,7 @@ async def refine_search_node(state: PipelineState) -> dict:
     }
 
 
-async def cross_enrich_node(state: PipelineState) -> dict:
+async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]
@@ -577,7 +577,7 @@ async def cross_enrich_node(state: PipelineState) -> dict:
     }
 
 
-async def refine_extraction_node(state: PipelineState) -> dict:
+async def refine_extraction_node(state: PipelineState) -> dict[str, object]:
     t0 = time.time()
     settings = _settings_from_state(state)
     parameter = state["parameter"]

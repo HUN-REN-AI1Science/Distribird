@@ -94,7 +94,7 @@ class TraceEvent(BaseModel):
     node: str
     timestamp: float = Field(default_factory=time.time)
     duration_s: float = 0.0
-    summary: dict = Field(default_factory=dict)
+    summary: dict[str, object] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ class TraceEvent(BaseModel):
 class PipelineState(TypedDict, total=False):
     # Inputs (set once)
     parameter: ParameterInput
-    settings_dict: dict
+    settings_dict: dict[str, object]
 
     # Accumulated data
     enrichment: EnrichedContext | None

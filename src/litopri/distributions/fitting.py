@@ -6,7 +6,7 @@ import warnings
 from dataclasses import dataclass
 
 import numpy as np
-from scipy import stats
+from scipy import stats  # type: ignore[import-untyped]
 
 from litopri.models import ConfidenceLevel, DistributionFamily, FittedPrior
 
@@ -194,7 +194,7 @@ def fit_distribution(
         lambda: _fit_lognormal(arr, w),
         lambda: _fit_beta(arr, lb, ub, w),
     ]:
-        result = fitter()
+        result = fitter()  # type: ignore[no-untyped-call]
         if result is not None:
             candidates.append(result)
 
@@ -308,9 +308,11 @@ def values_to_prior(
         )
 
     # 5+ values: full fitting
-    candidate = fit_distribution(values, lower_bound, upper_bound, weights=weights)
-    if candidate is None:
+    candidate_or_none = fit_distribution(values, lower_bound, upper_bound, weights=weights)
+    if candidate_or_none is None:
         candidate = moment_match_normal(values, lower_bound, upper_bound, weights=weights)
+    else:
+        candidate = candidate_or_none
 
     return FittedPrior(
         parameter_name=parameter_name,

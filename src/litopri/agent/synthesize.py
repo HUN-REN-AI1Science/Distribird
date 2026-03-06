@@ -25,8 +25,8 @@ def collect_weighted_values(papers: list[LiteratureEvidence]) -> list[WeightedVa
     for paper in papers:
         for ev in paper.extracted_values:
             if ev.reported_value is not None:
-                has_n = ev.sample_size and ev.sample_size > 0
-                weight = math.sqrt(ev.sample_size) if has_n else 1.0
+                n = ev.sample_size
+                weight = math.sqrt(n) if n and n > 0 else 1.0
                 weighted.append(
                     WeightedValue(
                         value=ev.reported_value,
