@@ -72,7 +72,7 @@ pip install litopri
 <summary><strong>Development install</strong></summary>
 
 ```bash
-git clone https://github.com/patrickscully/litopri.git
+git clone https://github.com/HUN-REN-AI1Science/LitoPri.git
 cd litopri
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
@@ -162,33 +162,6 @@ A complete worked example using five Biome-BGCMuSo maize parameters ([Hollos et 
 
 ```bash
 python examples/maize_bgcmuso/demo.py
-```
-
-## Project Structure
-
-```
-src/litopri/
-  agent/
-    graph.py          # LangGraph DAG definition
-    nodes.py          # Node functions (enrich, search, extract, ...)
-    state.py          # Shared state, blackboard, quality metrics
-    pipeline.py       # Public entry points: run_parameter(), run_batch()
-    agents.py         # Source agent implementations (S2, OpenAlex, DeepResearch)
-    deliberation.py   # Multi-agent moderator deliberation
-    enrich.py         # LLM context enrichment
-    extract.py        # Value extraction from papers
-    search.py         # Semantic Scholar search + query generation
-    synthesize.py     # Values → fitted distribution
-    prompts.py        # All LLM prompt templates
-  distributions/
-    fitting.py        # AIC-based distribution fitting
-    constraints.py    # Physical constraint filtering
-    uninformative.py  # Fallback priors
-  api/routes.py       # FastAPI endpoints
-  ui/app.py           # Streamlit interface
-  export/             # JSON, R, Python exporters
-  config.py           # pydantic-settings configuration
-  models.py           # Core Pydantic data models
 ```
 
 ## Testing

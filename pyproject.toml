@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Roland Hollos" }, { name = "Patrick Scully" },
+    { name = "Roland Hollos" }, { name = "Patrik P. Süli" },
 ]
 keywords = ["bayesian", "prior", "calibration", "literature", "distribution"]
 classifiers = [

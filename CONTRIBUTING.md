@@ -5,7 +5,7 @@ Contributions are welcome! Here's how to get started.
 ## Development Setup
 
 ```bash
-git clone https://github.com/patrickscully/litopri.git
+git clone https://github.com/HUN-REN-AI1Science/LitoPri.git
 cd litopri
 python -m venv .venv
 source .venv/bin/activate
