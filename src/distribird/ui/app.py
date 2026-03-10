@@ -104,9 +104,11 @@ def _secret_input(label: str, key: str, default: str, *, password: bool = False)
     else:
         placeholder = f"Required — enter {label}"
     help_text = None if has_default else "Not configured — you must provide this value"
+    # Set default via session state to avoid the "default value + Session State" warning
+    if key not in st.session_state:
+        st.session_state[key] = default if not password else ""
     value = st.sidebar.text_input(
         label,
-        value=default if not password else "",
         placeholder=placeholder,
         type="password" if password else "default",
         key=key,
@@ -267,9 +269,10 @@ def _render_override_fields(
 
     if use_openalex and has_oa:
         st.sidebar.subheader("OpenAlex")
+        if "oa_email_ov" not in st.session_state:
+            st.session_state["oa_email_ov"] = defaults.openalex_email
         overrides["openalex_email"] = st.sidebar.text_input(
             "Email",
-            value=defaults.openalex_email,
             key="oa_email_ov",
         )
 
@@ -886,15 +889,16 @@ def main() -> None:
     )
 
     missing = _check_missing_secrets(settings)
-    if missing:
-        st.error(f"Missing required settings: {', '.join(missing)}")
 
     if st.button(
         "Generate Priors",
         type="primary",
-        disabled=(not has_valid or st.session_state.is_running or bool(missing)),
+        disabled=(not has_valid or st.session_state.is_running),
     ):
-        process_all_parameters(settings)
+        if missing:
+            st.error(f"Missing required settings: {', '.join(missing)}")
+        else:
+            process_all_parameters(settings)
 
     # Show persisted results (from previous runs, visible after rerun)
     if st.session_state.results and not st.session_state.is_running:
