@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Distribird — Literature Informed Prior Generator</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Libre+Franklin:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Libre+Franklin:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #fafaf8;
@@ -50,7 +51,6 @@
     pointer-events: none;
   }
 
-  /* subtle grid pattern */
   .hero::after {
     content: '';
     position: absolute;
@@ -195,6 +195,21 @@
     color: var(--text-body);
   }
 
+  .card .context {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.8rem;
+    background: var(--accent-glow);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--accent-deep);
+  }
+
+  .card .context strong {
+    font-weight: 600;
+  }
+
   .card .params {
     display: flex;
     flex-wrap: wrap;
@@ -219,7 +234,6 @@
     border-color: var(--highlight);
   }
 
-  /* wide card for last item */
   .card.wide {
     grid-column: 1 / -1;
   }
@@ -321,113 +335,143 @@
 
 <div class="cards">
 
+  <!-- 01 ─ Climate -->
   <div class="card">
     <div class="card-number">01</div>
     <h3>Climate &amp; Earth Sciences</h3>
     <p>General circulation models contain parameters such as cloud microphysics coefficients and aerosol forcing terms that are difficult to constrain from observations alone. Literature-informed priors from satellite campaigns, reanalysis datasets, and prior modelling studies reduce the forward evaluations needed during calibration.</p>
+    <div class="context">
+      <strong>Scenario:</strong> CESM2/CAM6 calibration for marine stratocumulus over the Southeast Pacific. Cloud droplet effective radius constrained using MODIS Collection&nbsp;6.1 retrievals and in-situ data from the VOCALS-REx campaign (Arica–Iquique transect, 20°S). Aerosol optical depth at 550&nbsp;nm drawn from AERONET Level&nbsp;2.0 sites along the Chilean and Peruvian coast.
+    </div>
     <div class="params">
-      <span>cloud droplet number</span>
-      <span>aerosol optical depth</span>
-      <span>albedo feedback</span>
+      <span>cloud_droplet_r_eff [µm]</span>
+      <span>aerosol_optical_depth [–]</span>
     </div>
   </div>
 
+  <!-- 02 ─ Pharmacokinetics -->
   <div class="card">
     <div class="card-number">02</div>
     <h3>Pharmacokinetics &amp; Drug Development</h3>
     <p>Population PK/PD models estimate clearance, absorption rate, and volume of distribution. When patient-level data is limited — pediatric populations, rare diseases, early-phase trials — priors fitted from published studies on related compounds or prior clinical phases provide meaningful constraint.</p>
+    <div class="context">
+      <strong>Scenario:</strong> Two-compartment population PK model for vancomycin in neonatal intensive care (gestational age 28–40&nbsp;weeks, birth weight 0.8–4.5&nbsp;kg). Clearance and central volume priors informed by published NONMEM analyses in neonatal cohorts (e.g., Kimura&nbsp;et&nbsp;al.&nbsp;2004; Anderson&nbsp;et&nbsp;al.&nbsp;2007; Marqués-Miñana&nbsp;et&nbsp;al.&nbsp;2010). Target: AUC₂₄/MIC-guided dosing for methicillin-resistant <em>Staphylococcus aureus</em> sepsis.
+    </div>
     <div class="params">
-      <span>clearance</span>
-      <span>volume of distribution</span>
-      <span>absorption rate constant</span>
+      <span>cl [L/h/kg]</span>
+      <span>vc [L/kg]</span>
     </div>
   </div>
 
+  <!-- 03 ─ Hydrology -->
   <div class="card">
     <div class="card-number">03</div>
     <h3>Hydrology &amp; Water Resources</h3>
     <p>Conceptual rainfall-runoff models (e.g. SWAT, HBV) have parameters such as hydraulic conductivity and infiltration capacity that vary spatially and are rarely measured directly. Priors can be synthesized from regionalization studies, soil databases, and calibration results for similar catchments.</p>
+    <div class="context">
+      <strong>Scenario:</strong> HBV model for the Zala River catchment (Lake Balaton watershed, western Hungary, ~2,600&nbsp;km²). Dominant soils: Luvisols and Gleysols on Pannonian lacustrine sediments. Field capacity and K_sat priors informed by the EU Hydraulic Properties of European Soils (HYPRES) database and regionalization studies from Central European mesoscale catchments (e.g., Parajka&nbsp;et&nbsp;al.&nbsp;2007 for Austrian HBV calibrations).
+    </div>
     <div class="params">
-      <span>saturated hydraulic conductivity</span>
-      <span>field capacity</span>
-      <span>baseflow recession</span>
+      <span>fc [mm]</span>
+      <span>k_sat [mm/day]</span>
     </div>
   </div>
 
+  <!-- 04 ─ Structural Engineering -->
   <div class="card">
     <div class="card-number">04</div>
     <h3>Structural &amp; Civil Engineering</h3>
     <p>Finite element model updating requires estimating stiffness, damping ratios, and degradation rates from sensor measurements. Published material testing data and documented values from comparable structures provide a basis for constructing priors, particularly for structural health monitoring.</p>
+    <div class="context">
+      <strong>Scenario:</strong> FE model updating for the Z24 highway bridge (Koppigen–Utzenstorf, Canton Bern, Switzerland) — a post-tensioned concrete box-girder bridge monitored continuously before controlled progressive damage and demolition in 1998. Young's modulus of C40/50 concrete and first-mode damping ratio constrained from the SIMCES benchmark dataset and published Eurocode&nbsp;2 material test compendia.
+    </div>
     <div class="params">
-      <span>Young's modulus</span>
-      <span>damping ratio</span>
-      <span>corrosion rate</span>
+      <span>youngs_modulus [GPa]</span>
+      <span>damping_ratio [–]</span>
     </div>
   </div>
 
+  <!-- 05 ─ Epidemiology -->
   <div class="card">
     <div class="card-number">05</div>
     <h3>Epidemiology &amp; Disease Modelling</h3>
     <p>Compartmental models (SIR, SEIR, and variants) require transmission rates, incubation periods, and reporting fractions. During emerging outbreaks, observed data is scarce. Priors fitted from published parameters of related pathogens allow calibration to begin earlier and with greater stability.</p>
+    <div class="context">
+      <strong>Scenario:</strong> SEIR model for SARS-CoV-2 (B.1.1.7 / Alpha variant) in England, winter 2020–21. Incubation period (exposure to symptom onset) and infectious period priors drawn from published line-list studies and meta-analyses: Lauer&nbsp;et&nbsp;al.&nbsp;(2020, <em>Annals of Internal Medicine</em>), McAloon&nbsp;et&nbsp;al.&nbsp;(2020), and He&nbsp;et&nbsp;al.&nbsp;(2020, <em>Nature Medicine</em>) for serial interval and viral shedding duration.
+    </div>
     <div class="params">
-      <span>basic reproduction number</span>
-      <span>incubation period</span>
-      <span>case fatality rate</span>
+      <span>incubation_period [days]</span>
+      <span>infectious_period [days]</span>
     </div>
   </div>
 
+  <!-- 06 ─ Astrophysics -->
   <div class="card">
     <div class="card-number">06</div>
     <h3>Astrophysics &amp; Cosmology</h3>
     <p>Cosmological parameter estimation from CMB power spectra, supernovae, or galaxy surveys involves correlated parameters. Priors from independent observational campaigns help break degeneracies and improve posterior precision when combining datasets.</p>
+    <div class="context">
+      <strong>Scenario:</strong> Flat ΛCDM parameter estimation combining Planck&nbsp;2018 CMB TT,TE,EE+lowE power spectra with Pantheon+ Type&nbsp;Ia supernovae distance moduli. H₀ prior informed by the SH0ES Cepheid–supernova distance ladder (Riess&nbsp;et&nbsp;al.&nbsp;2022) and the TRGB calibration (Freedman&nbsp;et&nbsp;al.&nbsp;2021). Ω_m prior informed by BOSS DR12 BAO measurements and DES-Y3 cosmic shear.
+    </div>
     <div class="params">
-      <span>Hubble constant</span>
-      <span>matter density</span>
-      <span>dark energy EoS</span>
+      <span>H0 [km/s/Mpc]</span>
+      <span>omega_m [–]</span>
     </div>
   </div>
 
+  <!-- 07 ─ Ecology -->
   <div class="card">
     <div class="card-number">07</div>
     <h3>Ecology &amp; Population Dynamics</h3>
     <p>Population models involve growth rates, carrying capacities, and dispersal coefficients that are difficult to estimate from sparse field observations. Meta-analyses and published demographic data from ecologically similar species can be synthesized into prior distributions to stabilize inference.</p>
+    <div class="context">
+      <strong>Scenario:</strong> Lotka–Volterra predator–prey model for the <strong>Canadian lynx (<em>Lynx canadensis</em>)</strong> and <strong>snowshoe hare (<em>Lepus americanus</em>)</strong> system in the boreal forests of northern Alberta and the Northwest Territories, Canada. Prey intrinsic growth rate and carrying capacity priors drawn from the Hudson's Bay Company fur-return records (1845–1935), Elton &amp; Nicholson (1942), and modern mark-recapture studies by Krebs&nbsp;et&nbsp;al.&nbsp;(2001, <em>Ecosystem Dynamics of the Boreal Forest</em>) from the Kluane Lake region, Yukon.
+    </div>
     <div class="params">
-      <span>intrinsic growth rate</span>
-      <span>carrying capacity</span>
-      <span>dispersal kernel width</span>
+      <span>prey_growth_rate [1/year]</span>
+      <span>carrying_capacity [individuals/km²]</span>
     </div>
   </div>
 
+  <!-- 08 ─ Geophysics -->
   <div class="card">
     <div class="card-number">08</div>
     <h3>Geophysics &amp; Reservoir Engineering</h3>
     <p>History matching in reservoir simulation calibrates permeability fields, porosity, and relative permeability curves against production data. The problem is severely underdetermined. Priors informed by well log interpretations, seismic inversions, and core analysis reduce non-uniqueness.</p>
+    <div class="context">
+      <strong>Scenario:</strong> Single-phase Darcy flow simulation for the Brent Group (Rannoch–Etive–Ness formations) in the North Sea Brent Province, UK Continental Shelf. Permeability and porosity priors informed by published core-plug analyses from wells 211/29-A and 211/29-B (Ninian field), wireline log interpretations (gamma-ray / density cross-plots), and the Brent Field core data compendium (Morton&nbsp;et&nbsp;al.&nbsp;1992, <em>Geology of the Brent Group</em>, Geological Society Special Publication No.&nbsp;61).
+    </div>
     <div class="params">
-      <span>permeability</span>
-      <span>porosity</span>
-      <span>relative perm. endpoints</span>
+      <span>permeability [mD]</span>
+      <span>porosity [–]</span>
     </div>
   </div>
 
+  <!-- 09 ─ Robotics -->
   <div class="card">
     <div class="card-number">09</div>
     <h3>Robotics &amp; Autonomous Systems</h3>
     <p>System identification for robot dynamics involves friction coefficients, inertial parameters, and sensor noise characteristics. Published manufacturer data, laboratory benchmarks, and prior deployment studies provide informative priors that improve sim-to-real transfer.</p>
+    <div class="context">
+      <strong>Scenario:</strong> Euler–Lagrange rigid-body dynamics identification for the <strong>KUKA LBR iiwa&nbsp;14 R820</strong> 7-DOF torque-controlled manipulator. Coulomb friction coefficient and link inertia priors drawn from KUKA's published CAD-derived inertial parameters and from independent identification experiments by Gaz&nbsp;et&nbsp;al.&nbsp;(2019, <em>IEEE RA-L</em>) and Jubien&nbsp;et&nbsp;al.&nbsp;(2014), using exciting sinusoidal joint trajectories with torque-sensor feedback.
+    </div>
     <div class="params">
-      <span>Coulomb friction</span>
-      <span>link inertia</span>
-      <span>sensor bias</span>
+      <span>coulomb_friction_coeff [–]</span>
+      <span>link_inertia [kg·m²]</span>
     </div>
   </div>
 
+  <!-- 10 ─ Economics -->
   <div class="card">
     <div class="card-number">10</div>
     <h3>Economics &amp; Finance</h3>
     <p>Bayesian estimation of DSGE models involves structural parameters such as risk aversion, price stickiness (Calvo parameter), and policy reaction coefficients. These are typically informed by microeconometric estimates, and prior specification has a well-documented effect on posterior inference.</p>
+    <div class="context">
+      <strong>Scenario:</strong> Three-equation New Keynesian DSGE model (IS curve, Phillips curve, Taylor rule) estimated on US quarterly data (1966:Q1–2019:Q4) from FRED: real GDP growth, GDP deflator inflation, and the effective federal funds rate. Price stickiness duration and inflation response coefficient priors informed by Smets &amp; Wouters (2007, <em>AER</em>), Galí (2015, <em>Monetary Policy, Inflation, and the Business Cycle</em>), and microeconometric price-adjustment frequency estimates from Nakamura &amp; Steinsson (2008, <em>QJE</em>).
+    </div>
     <div class="params">
-      <span>risk aversion</span>
-      <span>Calvo parameter</span>
-      <span>Taylor rule coefficients</span>
+      <span>price_stickiness_duration [quarters]</span>
+      <span>inflation_response_coeff [–]</span>
     </div>
   </div>
 
@@ -447,6 +491,5 @@
   <div>Literature Informed Prior Generator</div>
 </footer>
 
-
-
-</body></html>
+</body>
+</html>

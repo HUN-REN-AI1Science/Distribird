@@ -21,7 +21,9 @@ from distribird.ui.persistence import (
     save_session_state,
 )
 
-_ASSETS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "assets"
+_ASSETS_DIR_FROM_FILE = Path(__file__).resolve().parent.parent.parent.parent / "assets"
+_ASSETS_DIR_FROM_CWD = Path.cwd() / "assets"
+_ASSETS_DIR = _ASSETS_DIR_FROM_FILE if _ASSETS_DIR_FROM_FILE.is_dir() else _ASSETS_DIR_FROM_CWD
 
 
 def inject_custom_css() -> None:
