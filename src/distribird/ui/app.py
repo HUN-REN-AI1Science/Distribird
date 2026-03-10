@@ -8,8 +8,6 @@ from typing import Any
 
 import streamlit as st
 
-_ASSETS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "assets"
-
 from distribird.agent.graph import NODE_META
 from distribird.agent.pipeline import run_parameter
 from distribird.config import Settings, get_settings
@@ -22,6 +20,8 @@ from distribird.ui.persistence import (
     hydrate_session_state,
     save_session_state,
 )
+
+_ASSETS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "assets"
 
 
 def inject_custom_css() -> None:
@@ -905,7 +905,9 @@ def main() -> None:
             st.session_state["_docs_shown"] = True
             _show_docs(_docs_path)
         st.sidebar.markdown("---")
-        if st.sidebar.button("Documentation", icon=":material/menu_book:", use_container_width=True):
+        if st.sidebar.button(
+            "Documentation", icon=":material/menu_book:", use_container_width=True
+        ):
             _show_docs(_docs_path)
 
     # Sidebar: clear saved settings
