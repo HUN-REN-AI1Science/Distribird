@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/lint-ruff-261230?logo=ruff&logoColor=D7FF64" alt="Linting: ruff">
   <a href="https://langgraph.dev/"><img src="https://img.shields.io/badge/orchestration-LangGraph-1C3C3C?logo=langchain&logoColor=white" alt="LangGraph"></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
+  <a href="https://distribird.streamlit.app"><img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" alt="Open in Streamlit"></a>
 </p>
 
 ---
@@ -23,6 +24,10 @@ It searches Semantic Scholar, OpenAlex, and LLM deep-research agents in parallel
 > *"I need a prior for maximum leaf area index of maize."*
 >
 > &rarr; `truncated_normal(mu=5.2, sigma=1.5, a=0, b=12)` &mdash; fitted from 6 peer-reviewed sources with full citations.
+
+<p align="center">
+  <a href="https://distribird.streamlit.app"><strong>Try it now &rarr; distribird.streamlit.app</strong></a>
+</p>
 
 ## Why Distribird?
 
@@ -134,6 +139,8 @@ curl -u demo:distribird2026 -X POST http://localhost:8000/api/v1/parameter \
 ```
 
 **Streamlit UI**
+
+Try the hosted version at **[distribird.streamlit.app](https://distribird.streamlit.app)**, or run locally:
 
 ```bash
 streamlit run src/distribird/ui/app.py
