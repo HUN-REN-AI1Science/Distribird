@@ -23,10 +23,10 @@ It searches Semantic Scholar, OpenAlex, and LLM deep-research agents in parallel
 
 > *"I need a prior for maximum leaf area index of maize."*
 >
-> &rarr; `truncated_normal(mu=5.2, sigma=1.5, a=0, b=12)` &mdash; fitted from 6 peer-reviewed sources with full citations.
+> &#x279C; `truncated_normal(mu=5.2, sigma=1.5, a=0, b=12)` &mdash; fitted from 6 peer-reviewed sources with full citations.
 
 <p align="center">
-  <a href="https://distribird.streamlit.app"><strong>Try it now &rarr; distribird.streamlit.app</strong></a>
+  <a href="https://distribird.streamlit.app"><img src="https://img.shields.io/badge/Try_it_now-distribird.streamlit.app-2d6a4f?style=for-the-badge" alt="Try it now"></a>
 </p>
 
 ## Why Distribird?
