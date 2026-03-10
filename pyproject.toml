@@ -47,6 +47,7 @@ dev = [
 
 [project.urls]
 Repository = "https://github.com/HUN-REN-AI1Science/Distribird"
+Documentation = "https://distribird.streamlit.app"
 
 [project.scripts]
 distribird-api = "distribird.api:main"
