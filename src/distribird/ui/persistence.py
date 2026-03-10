@@ -17,7 +17,7 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
-STORAGE_KEY = "litopri_state"
+STORAGE_KEY = "distribird_state"
 
 # Keys persisted as-is — sidebar (left panel) settings only
 _SIMPLE_KEYS: list[str] = [

@@ -8,17 +8,17 @@ import re
 
 from openai import OpenAI
 
-from litopri.agent.agents import (
+from distribird.agent.agents import (
     DeepResearchAgent,
     OpenAlexAgent,
     SemanticScholarAgent,
     SourceAgent,
     WebSearchAgent,
 )
-from litopri.agent.extract import _llm_json_call
-from litopri.agent.prompts import DELIBERATION_MODERATOR
-from litopri.config import Settings
-from litopri.models import (
+from distribird.agent.extract import _llm_json_call
+from distribird.agent.prompts import DELIBERATION_MODERATOR
+from distribird.config import Settings
+from distribird.models import (
     AgentFinding,
     DeliberationResult,
     EnrichedContext,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from litopri.models import ConfidenceLevel, DistributionFamily, FittedPrior
+from distribird.models import ConfidenceLevel, DistributionFamily, FittedPrior
 
 
 def jeffreys_prior(

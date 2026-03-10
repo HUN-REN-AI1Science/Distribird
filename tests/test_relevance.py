@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 import pytest
 
-from litopri.agent.search import judge_paper_relevance
-from litopri.config import Settings
-from litopri.models import LiteratureEvidence, ParameterInput
+from distribird.agent.search import judge_paper_relevance
+from distribird.config import Settings
+from distribird.models import LiteratureEvidence, ParameterInput
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def _make_papers(n):
     ]
 
 
-@patch("litopri.agent.search._llm_json_call")
+@patch("distribird.agent.search._llm_json_call")
 def test_judge_relevance_high(mock_llm, parameter, settings):
     papers = _make_papers(1)
     mock_llm.return_value = {
@@ -51,7 +51,7 @@ def test_judge_relevance_high(mock_llm, parameter, settings):
     assert papers[0].relevance_snippet == "Peak LAI was 5.8 m2/m2"
 
 
-@patch("litopri.agent.search._llm_json_call")
+@patch("distribird.agent.search._llm_json_call")
 def test_judge_relevance_batching(mock_llm, parameter, settings):
     papers = _make_papers(15)
     mock_llm.return_value = {
@@ -61,7 +61,7 @@ def test_judge_relevance_batching(mock_llm, parameter, settings):
     assert calls == 2
 
 
-@patch("litopri.agent.search._llm_json_call")
+@patch("distribird.agent.search._llm_json_call")
 def test_judge_relevance_llm_failure(mock_llm, parameter, settings):
     papers = _make_papers(3)
     original_scores = [p.relevance_score for p in papers]
@@ -73,7 +73,7 @@ def test_judge_relevance_llm_failure(mock_llm, parameter, settings):
         assert p.relevance_score == orig
 
 
-@patch("litopri.agent.search._llm_json_call")
+@patch("distribird.agent.search._llm_json_call")
 def test_score_blending(mock_llm, parameter, settings):
     papers = [
         LiteratureEvidence(
@@ -91,7 +91,7 @@ def test_score_blending(mock_llm, parameter, settings):
     assert papers[0].relevance_score == pytest.approx(expected)
 
 
-@patch("litopri.agent.search._llm_json_call")
+@patch("distribird.agent.search._llm_json_call")
 def test_skip_already_judged(mock_llm, parameter, settings):
     papers = [
         LiteratureEvidence(

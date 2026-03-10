@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from litopri.ui.persistence import _SIMPLE_KEYS, STORAGE_KEY
+from distribird.ui.persistence import _SIMPLE_KEYS, STORAGE_KEY
 
 
 class TestSimpleKeysSerialization:
@@ -50,4 +50,4 @@ class TestEdgeCases:
         assert len(_SIMPLE_KEYS) > 0
 
     def test_storage_key_constant(self):
-        assert STORAGE_KEY == "litopri_state"
+        assert STORAGE_KEY == "distribird_state"

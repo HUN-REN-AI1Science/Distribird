@@ -8,8 +8,8 @@ import re
 import httpx
 import pymupdf
 
-from litopri.config import Settings
-from litopri.models import LiteratureEvidence
+from distribird.config import Settings
+from distribird.models import LiteratureEvidence
 
 logger = logging.getLogger(__name__)
 

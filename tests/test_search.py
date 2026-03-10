@@ -6,15 +6,15 @@ import httpx
 import pytest
 import respx
 
-from litopri.agent.search import (
+from distribird.agent.search import (
     _compute_relevance,
     llm_deep_research,
     search_semantic_scholar,
     verify_deep_research_papers,
     verify_paper_doi,
 )
-from litopri.config import Settings
-from litopri.models import ConstraintSpec, LiteratureEvidence, ParameterInput
+from distribird.config import Settings
+from distribird.models import ConstraintSpec, LiteratureEvidence, ParameterInput
 
 
 @pytest.fixture
@@ -170,7 +170,7 @@ class TestDeepResearchDedicatedModel:
             constraints=ConstraintSpec(lower_bound=0, upper_bound=12),
         )
 
-    @patch("litopri.agent.search.OpenAI")
+    @patch("distribird.agent.search.OpenAI")
     @pytest.mark.asyncio
     async def test_uses_dedicated_model(self, mock_openai_cls, parameter):
         """Deep research uses dedicated endpoint and web prompt."""
@@ -221,7 +221,7 @@ class TestDeepResearchConfidence:
             constraints=ConstraintSpec(lower_bound=0, upper_bound=12),
         )
 
-    @patch("litopri.agent.search.OpenAI")
+    @patch("distribird.agent.search.OpenAI")
     @pytest.mark.asyncio
     async def test_confidence_maps_to_relevance(self, mock_openai_cls, parameter, settings):
         import json

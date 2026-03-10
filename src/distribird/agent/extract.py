@@ -8,8 +8,8 @@ import re
 
 from openai import OpenAI
 
-from litopri.config import Settings
-from litopri.models import (
+from distribird.config import Settings
+from distribird.models import (
     ConstraintSpec,
     EnrichedContext,
     ExtractedValue,
@@ -124,7 +124,7 @@ def extract_values_from_paper(
     enrichment: EnrichedContext | None = None,
 ) -> list[ExtractedValue]:
     """Extract parameter values from a paper using LLM."""
-    from litopri.agent.prompts import VALUE_EXTRACTION
+    from distribird.agent.prompts import VALUE_EXTRACTION
 
     text = _paper_text(paper)
     if not text:
@@ -225,7 +225,7 @@ def extract_values_batch(
     Returns a list of ExtractedValue lists, one per input paper (same order).
     Falls back to per-paper extraction if the batch call fails.
     """
-    from litopri.agent.prompts import BATCH_VALUE_EXTRACTION
+    from distribird.agent.prompts import BATCH_VALUE_EXTRACTION
 
     constraint = parameter.constraints
 
@@ -302,7 +302,7 @@ def extract_values_web_assisted(
     and calls the LLM with web_search_options to find full text content.
     Returns papers that gained new extracted values.
     """
-    from litopri.agent.prompts import WEB_ASSISTED_EXTRACTION
+    from distribird.agent.prompts import WEB_ASSISTED_EXTRACTION
 
     constraint = parameter.constraints
 
@@ -445,7 +445,7 @@ def extract_consensus_values(
     Asks the LLM to look across all abstracts and determine the standard/default
     or implied value for the parameter.
     """
-    from litopri.agent.prompts import CONSENSUS_EXTRACTION
+    from distribird.agent.prompts import CONSENSUS_EXTRACTION
 
     lines = []
     for i, paper in enumerate(papers):

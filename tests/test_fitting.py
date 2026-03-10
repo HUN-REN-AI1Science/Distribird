@@ -3,12 +3,12 @@
 import numpy as np
 import pytest
 
-from litopri.distributions.fitting import (
+from distribird.distributions.fitting import (
     fit_distribution,
     moment_match_normal,
     values_to_prior,
 )
-from litopri.models import ConfidenceLevel, DistributionFamily
+from distribird.models import ConfidenceLevel, DistributionFamily
 
 
 class TestFitDistribution:

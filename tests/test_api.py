@@ -7,11 +7,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 # Ensure test credentials match the defaults in config.py
-os.environ.setdefault("LITOPRI_AUTH_USERNAME", "demo")
-os.environ.setdefault("LITOPRI_AUTH_PASSWORD", "changeme")
+os.environ.setdefault("DISTRIBIRD_AUTH_USERNAME", "demo")
+os.environ.setdefault("DISTRIBIRD_AUTH_PASSWORD", "changeme")
 
-from litopri.api.routes import app
-from litopri.models import (
+from distribird.api.routes import app
+from distribird.models import (
     ConfidenceLevel,
     DistributionFamily,
     FittedPrior,
@@ -55,7 +55,7 @@ def test_parameter_requires_auth(client):
     assert resp.status_code == 401
 
 
-@patch("litopri.api.routes.run_parameter", new_callable=AsyncMock)
+@patch("distribird.api.routes.run_parameter", new_callable=AsyncMock)
 def test_process_parameter(mock_run, client, mock_result):
     mock_run.return_value = mock_result
     resp = client.post(

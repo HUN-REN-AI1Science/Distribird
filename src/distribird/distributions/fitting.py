@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import stats  # type: ignore[import-untyped]
 
-from litopri.models import ConfidenceLevel, DistributionFamily, FittedPrior
+from distribird.models import ConfidenceLevel, DistributionFamily, FittedPrior
 
 
 @dataclass
@@ -268,7 +268,7 @@ def values_to_prior(
     - 1 value: wide Normal centered on the value (uses uncertainty if available)
     - 0 values: delegated to uninformative module
     """
-    from litopri.distributions.uninformative import wide_normal_prior
+    from distribird.distributions.uninformative import wide_normal_prior
 
     n = len(values)
 

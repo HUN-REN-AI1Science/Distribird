@@ -6,9 +6,9 @@ import logging
 
 from openai import OpenAI
 
-from litopri.agent.extract import _llm_json_call
-from litopri.config import Settings
-from litopri.models import EnrichedContext, ParameterInput
+from distribird.agent.extract import _llm_json_call
+from distribird.config import Settings
+from distribird.models import EnrichedContext, ParameterInput
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ _WEB_SEARCH_EXTRA_BODY: dict[str, object] = {
 
 def research_model(domain_context: str, settings: Settings) -> str:
     """Use LLM to identify and summarize the model from domain_context."""
-    from litopri.agent.prompts import MODEL_RESEARCH
+    from distribird.agent.prompts import MODEL_RESEARCH
 
     prompt = MODEL_RESEARCH.format(domain_context=domain_context)
 
@@ -59,7 +59,7 @@ def enrich_parameter(
     settings: Settings,
 ) -> EnrichedContext:
     """Use LLM to enrich a parameter with scientific context."""
-    from litopri.agent.prompts import PARAMETER_ENRICHMENT
+    from distribird.agent.prompts import PARAMETER_ENRICHMENT
 
     prompt = PARAMETER_ENRICHMENT.format(
         model_summary=model_summary,

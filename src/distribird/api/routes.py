@@ -1,4 +1,4 @@
-"""FastAPI endpoints for LitoPri."""
+"""FastAPI endpoints for Distribird."""
 
 from __future__ import annotations
 
@@ -7,15 +7,15 @@ import hmac
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from litopri.agent.pipeline import run_batch, run_parameter
-from litopri.config import get_settings
-from litopri.export.json_export import export_json, result_to_dict
-from litopri.export.python_export import export_python
-from litopri.export.r_export import export_r
-from litopri.models import ParameterInput
+from distribird.agent.pipeline import run_batch, run_parameter
+from distribird.config import get_settings
+from distribird.export.json_export import export_json, result_to_dict
+from distribird.export.python_export import export_python
+from distribird.export.r_export import export_r
+from distribird.models import ParameterInput
 
 app = FastAPI(
-    title="LitoPri API",
+    title="Distribird API",
     description="Literature-informed Prior distributions for Bayesian model calibration",
     version="0.1.0",
 )

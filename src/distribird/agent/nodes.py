@@ -7,7 +7,7 @@ import time
 
 from openai import OpenAI
 
-from litopri.agent.state import (
+from distribird.agent.state import (
     IterationBudget,
     MessageKind,
     PipelineState,
@@ -17,8 +17,8 @@ from litopri.agent.state import (
     post_message,
     update_quality,
 )
-from litopri.config import Settings
-from litopri.models import EnrichedContext
+from distribird.config import Settings
+from distribird.models import EnrichedContext
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ async def enrich_node(state: PipelineState) -> dict[str, object]:
 
     enrichment: EnrichedContext | None = None
     if settings.enable_context_enrichment:
-        from litopri.agent.enrich import enrich_parameter_context
+        from distribird.agent.enrich import enrich_parameter_context
 
         try:
             enrichment = enrich_parameter_context(parameter, settings)
@@ -73,7 +73,7 @@ async def query_gen_node(state: PipelineState) -> dict[str, object]:
     enrichment = state.get("enrichment")
     traces = list(state.get("trace_events", []))
 
-    from litopri.agent.search import generate_search_queries
+    from distribird.agent.search import generate_search_queries
 
     queries = generate_search_queries(parameter, settings, enrichment=enrichment)
 
@@ -99,7 +99,7 @@ async def search_node(state: PipelineState) -> dict[str, object]:
     traces = list(state.get("trace_events", []))
 
     if settings.enable_deliberation:
-        from litopri.agent.deliberation import deliberate, run_source_agents
+        from distribird.agent.deliberation import deliberate, run_source_agents
 
         agent_findings = await run_source_agents(
             parameter,
@@ -149,7 +149,7 @@ async def search_node(state: PipelineState) -> dict[str, object]:
             "trace_events": traces,
         }
     else:
-        from litopri.agent.search import search_all_queries
+        from distribird.agent.search import search_all_queries
 
         papers = await search_all_queries(queries, settings)
         new_added = add_papers(state, papers)
@@ -185,7 +185,7 @@ async def relevance_judge_node(state: PipelineState) -> dict[str, object]:
 
     n_judged = 0
     if settings.enable_relevance_judgment and papers and budget.has_budget():
-        from litopri.agent.search import judge_paper_relevance
+        from distribird.agent.search import judge_paper_relevance
 
         llm_calls = judge_paper_relevance(papers, parameter, settings, enrichment)
         budget.total_llm_calls_used += llm_calls
@@ -217,7 +217,7 @@ async def fetch_fulltext_node(state: PipelineState) -> dict[str, object]:
 
     n_fulltext = 0
     if papers:
-        from litopri.agent.fulltext import fetch_all_fulltexts
+        from distribird.agent.fulltext import fetch_all_fulltexts
 
         n_fulltext = await fetch_all_fulltexts(papers, settings)
 
@@ -237,7 +237,7 @@ async def extract_node(state: PipelineState) -> dict[str, object]:
     warnings = list(state.get("warnings", []))
     traces = list(state.get("trace_events", []))
 
-    from litopri.agent.extract import (
+    from distribird.agent.extract import (
         extract_all_values,
         extract_consensus_values,
         extract_values_web_assisted,
@@ -327,7 +327,7 @@ async def synthesize_node(state: PipelineState) -> dict[str, object]:
     warnings = list(state.get("warnings", []))
     traces = list(state.get("trace_events", []))
 
-    from litopri.agent.synthesize import synthesize_prior
+    from distribird.agent.synthesize import synthesize_prior
 
     enrichment = state.get("enrichment")
     prior = synthesize_prior(parameter, papers_with_values, enrichment=enrichment)
@@ -371,8 +371,8 @@ async def refine_search_node(state: PipelineState) -> dict[str, object]:
     warnings = list(state.get("warnings", []))
     traces = list(state.get("trace_events", []))
 
-    from litopri.agent.extract import _llm_json_call
-    from litopri.agent.prompts import SEARCH_REFINEMENT
+    from distribird.agent.extract import _llm_json_call
+    from distribird.agent.prompts import SEARCH_REFINEMENT
 
     paper_summaries = "\n".join(
         f"- {p.title} ({p.year}): {(p.abstract or '')[:150]}" for p in papers[:10]
@@ -486,7 +486,7 @@ async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
 
     # --- Snowballing (pure S2 API, no LLM cost) ---
     if settings.enable_snowballing and budget.can_snowball():
-        from litopri.agent.search import snowball_papers
+        from distribird.agent.search import snowball_papers
 
         existing_dois = {p.doi.strip().lower() for p in papers if p.doi}
         seed_papers = sorted(papers, key=lambda p: p.relevance_score, reverse=True)
@@ -501,8 +501,8 @@ async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
         budget.snowball_used += 1
         papers = state.get("all_papers", [])
 
-    from litopri.agent.extract import _llm_json_call
-    from litopri.agent.prompts import CROSS_ENRICHMENT_QUERIES
+    from distribird.agent.extract import _llm_json_call
+    from distribird.agent.prompts import CROSS_ENRICHMENT_QUERIES
 
     # Identify key papers (high relevance)
     key_papers = [p for p in papers if p.relevance_score > 0.6]
@@ -548,7 +548,7 @@ async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
         logger.warning("[node:cross_enrich] LLM call failed: %s", e)
 
     # Run targeted searches with new queries
-    from litopri.agent.search import search_all_queries
+    from distribird.agent.search import search_all_queries
 
     if new_queries:
         new_papers = await search_all_queries(new_queries, settings)
@@ -588,7 +588,7 @@ async def refine_extraction_node(state: PipelineState) -> dict[str, object]:
     warnings = list(state.get("warnings", []))
     traces = list(state.get("trace_events", []))
 
-    from litopri.agent.extract import extract_values_web_assisted
+    from distribird.agent.extract import extract_values_web_assisted
 
     # Select papers most likely to have values (high relevance, no values yet)
     existing_titles = {p.title for p in papers_with_values}

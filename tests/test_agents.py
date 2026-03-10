@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from litopri.config import Settings
-from litopri.models import (
+from distribird.config import Settings
+from distribird.models import (
     AgentFinding,
     ConstraintSpec,
     LiteratureEvidence,
@@ -50,9 +50,9 @@ def sample_papers():
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.agents.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.agents.search_all_queries", new_callable=AsyncMock)
 async def test_semantic_scholar_agent(mock_search, parameter, settings, sample_papers):
-    from litopri.agent.agents import SemanticScholarAgent
+    from distribird.agent.agents import SemanticScholarAgent
 
     mock_search.return_value = sample_papers
     agent = SemanticScholarAgent()
@@ -66,11 +66,11 @@ async def test_semantic_scholar_agent(mock_search, parameter, settings, sample_p
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.agents.verify_deep_research_papers", new_callable=AsyncMock)
-@patch("litopri.agent.agents._llm_json_call")
-@patch("litopri.agent.agents.OpenAI")
+@patch("distribird.agent.agents.verify_deep_research_papers", new_callable=AsyncMock)
+@patch("distribird.agent.agents._llm_json_call")
+@patch("distribird.agent.agents.OpenAI")
 async def test_web_search_agent(mock_openai, mock_llm_call, mock_verify, parameter, settings):
-    from litopri.agent.agents import WebSearchAgent
+    from distribird.agent.agents import WebSearchAgent
 
     mock_llm_call.return_value = [
         {
@@ -103,9 +103,9 @@ async def test_web_search_agent(mock_openai, mock_llm_call, mock_verify, paramet
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.agents.search_openalex_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.agents.search_openalex_all_queries", new_callable=AsyncMock)
 async def test_openalex_agent(mock_search, parameter, settings, sample_papers):
-    from litopri.agent.agents import OpenAlexAgent
+    from distribird.agent.agents import OpenAlexAgent
 
     mock_search.return_value = sample_papers
     agent = OpenAlexAgent()
@@ -119,10 +119,10 @@ async def test_openalex_agent(mock_search, parameter, settings, sample_papers):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.agents.verify_deep_research_papers", new_callable=AsyncMock)
-@patch("litopri.agent.agents.llm_deep_research", new_callable=AsyncMock)
+@patch("distribird.agent.agents.verify_deep_research_papers", new_callable=AsyncMock)
+@patch("distribird.agent.agents.llm_deep_research", new_callable=AsyncMock)
 async def test_deep_research_agent(mock_deep, mock_verify, parameter, settings):
-    from litopri.agent.agents import DeepResearchAgent
+    from distribird.agent.agents import DeepResearchAgent
 
     raw_papers = [
         LiteratureEvidence(
@@ -159,8 +159,8 @@ async def test_deep_research_agent(mock_deep, mock_verify, parameter, settings):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.agents.verify_deep_research_papers", new_callable=AsyncMock)
-@patch("litopri.agent.agents.llm_deep_research", new_callable=AsyncMock)
+@patch("distribird.agent.agents.verify_deep_research_papers", new_callable=AsyncMock)
+@patch("distribird.agent.agents.llm_deep_research", new_callable=AsyncMock)
 async def test_deep_research_agent_with_discards(mock_deep, mock_verify, parameter, settings):
     mock_deep.return_value = [
         LiteratureEvidence(title="Paper A", doi="10.1234/a", abstract="x"),
@@ -171,7 +171,7 @@ async def test_deep_research_agent_with_discards(mock_deep, mock_verify, paramet
         1,
     )
 
-    from litopri.agent.agents import DeepResearchAgent
+    from distribird.agent.agents import DeepResearchAgent
 
     agent = DeepResearchAgent()
     finding = await agent.search(parameter, [], settings)

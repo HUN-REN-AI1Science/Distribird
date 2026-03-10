@@ -1,4 +1,4 @@
-"""Pydantic models for LitoPri data structures."""
+"""Pydantic models for Distribird data structures."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """Tests for Pydantic models."""
 
-from litopri.models import (
+from distribird.models import (
     BatchResult,
     ConfidenceLevel,
     ConstraintSpec,

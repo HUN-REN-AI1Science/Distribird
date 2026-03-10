@@ -7,9 +7,9 @@ import logging
 
 import httpx
 
-from litopri.agent.search import _compute_relevance
-from litopri.config import Settings
-from litopri.models import LiteratureEvidence
+from distribird.agent.search import _compute_relevance
+from distribird.config import Settings
+from distribird.models import LiteratureEvidence
 
 logger = logging.getLogger(__name__)
 

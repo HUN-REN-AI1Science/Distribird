@@ -1,4 +1,4 @@
-"""Streamlit application for LitoPri."""
+"""Streamlit application for Distribird."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from typing import Any
 
 import streamlit as st
 
-from litopri.agent.graph import NODE_META
-from litopri.agent.pipeline import run_parameter
-from litopri.config import Settings, get_settings
-from litopri.export.json_export import export_single_json
-from litopri.export.python_export import export_single_python
-from litopri.export.r_export import export_single_r
-from litopri.models import ConstraintSpec, LiteratureEvidence, ParameterInput, PipelineResult
-from litopri.ui.persistence import (
+from distribird.agent.graph import NODE_META
+from distribird.agent.pipeline import run_parameter
+from distribird.config import Settings, get_settings
+from distribird.export.json_export import export_single_json
+from distribird.export.python_export import export_single_python
+from distribird.export.r_export import export_single_r
+from distribird.models import ConstraintSpec, LiteratureEvidence, ParameterInput, PipelineResult
+from distribird.ui.persistence import (
     clear_persisted_state,
     hydrate_session_state,
     save_session_state,
@@ -822,7 +822,7 @@ def process_all_parameters(settings: Settings) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="LitoPri", page_icon="📊", layout="wide")
+    st.set_page_config(page_title="Distribird", page_icon="📊", layout="wide")
     inject_custom_css()
 
     ls = hydrate_session_state()
@@ -830,7 +830,7 @@ def main() -> None:
     if not check_login():
         return
 
-    st.title("LitoPri: Literature-informed Priors")
+    st.title("Distribird: Literature-informed Priors")
     st.markdown(
         "Automatically search scientific literature and synthesize "
         "informative prior distributions for Bayesian model calibration."

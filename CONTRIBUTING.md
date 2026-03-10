@@ -1,12 +1,12 @@
-# Contributing to LitoPri
+# Contributing to Distribird
 
 Contributions are welcome! Here's how to get started.
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/HUN-REN-AI1Science/LitoPri.git
-cd litopri
+git clone https://github.com/HUN-REN-AI1Science/Distribird.git
+cd distribird
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -29,7 +29,7 @@ ruff format src/ tests/
 
 Type checking with mypy:
 ```bash
-mypy src/litopri/
+mypy src/distribird/
 ```
 
 ## Pull Requests

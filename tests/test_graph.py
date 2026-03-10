@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from litopri.agent.graph import NODE_META, build_pipeline_graph, run_parameter_graph
-from litopri.config import Settings
-from litopri.models import (
+from distribird.agent.graph import NODE_META, build_pipeline_graph, run_parameter_graph
+from distribird.config import Settings
+from distribird.models import (
     ConstraintSpec,
     ExtractedValue,
     LiteratureEvidence,
@@ -54,9 +54,9 @@ def test_graph_has_relevance_judge_node():
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_graph_happy_path(
     mock_queries,
     mock_search,
@@ -85,9 +85,9 @@ async def test_graph_happy_path(
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_graph_no_loops_when_sufficient(
     mock_queries,
     mock_search,
@@ -118,10 +118,10 @@ async def test_graph_no_loops_when_sufficient(
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract._llm_json_call")
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract._llm_json_call")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_graph_loop_a_triggers(
     mock_queries,
     mock_search,
@@ -183,9 +183,9 @@ async def test_graph_loop_a_triggers(
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_graph_loop_termination(
     mock_queries,
     mock_search,
@@ -217,9 +217,9 @@ async def test_graph_loop_termination(
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_graph_no_papers(
     mock_queries,
     mock_search,
@@ -238,9 +238,9 @@ async def test_graph_no_papers(
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_graph_streams_with_callback(
     mock_queries,
     mock_search,

@@ -7,16 +7,16 @@ from typing import TYPE_CHECKING, Protocol
 
 from openai import OpenAI
 
-from litopri.agent.extract import _llm_json_call
-from litopri.agent.prompts import WEB_SEARCH_AGENT
-from litopri.agent.search import (
+from distribird.agent.extract import _llm_json_call
+from distribird.agent.prompts import WEB_SEARCH_AGENT
+from distribird.agent.search import (
     llm_deep_research,
     search_all_queries,
     verify_deep_research_papers,
 )
-from litopri.agent.search_openalex import search_openalex_all_queries
-from litopri.config import Settings
-from litopri.models import (
+from distribird.agent.search_openalex import search_openalex_all_queries
+from distribird.config import Settings
+from distribird.models import (
     AgentFinding,
     EnrichedContext,
     LiteratureEvidence,
@@ -24,7 +24,7 @@ from litopri.models import (
 )
 
 if TYPE_CHECKING:
-    from litopri.agent.state import BlackboardMessage
+    from distribird.agent.state import BlackboardMessage
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class SemanticScholarAgent:
         # Incorporate cross-ref DOIs from blackboard as extra queries
         extra_queries: list[str] = []
         if blackboard:
-            from litopri.agent.state import MessageKind
+            from distribird.agent.state import MessageKind
 
             for msg in blackboard:
                 if msg.kind == MessageKind.CROSS_REF and msg.sender != self.name:

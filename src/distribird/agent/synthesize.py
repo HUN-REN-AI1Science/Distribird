@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 
-from litopri.distributions.constraints import filter_values_by_constraints
-from litopri.distributions.fitting import values_to_prior
-from litopri.models import (
+from distribird.distributions.constraints import filter_values_by_constraints
+from distribird.distributions.fitting import values_to_prior
+from distribird.models import (
     EnrichedContext,
     FittedPrior,
     LiteratureEvidence,
@@ -66,7 +66,7 @@ def _infer_bounds_from_enrichment(
         return lb, ub
 
     if enrichment and enrichment.typical_range:
-        from litopri.agent.extract import _parse_typical_range
+        from distribird.agent.extract import _parse_typical_range
 
         parsed = _parse_typical_range(enrichment.typical_range)
         if parsed is not None:

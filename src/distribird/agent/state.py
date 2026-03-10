@@ -8,7 +8,7 @@ from typing import TypedDict
 
 from pydantic import BaseModel, Field
 
-from litopri.models import (
+from distribird.models import (
     AgentFinding,
     DeliberationResult,
     EnrichedContext,

@@ -4,13 +4,13 @@ import httpx
 import pytest
 import respx
 
-from litopri.agent.search_openalex import (
+from distribird.agent.search_openalex import (
     _normalize_openalex_doi,
     reconstruct_abstract,
     search_openalex,
     search_openalex_all_queries,
 )
-from litopri.config import Settings
+from distribird.config import Settings
 
 
 @pytest.fixture

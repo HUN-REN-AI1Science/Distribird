@@ -6,7 +6,7 @@ from typing import Any, Callable, cast
 
 from langgraph.graph import END, START, StateGraph
 
-from litopri.agent.nodes import (
+from distribird.agent.nodes import (
     cross_enrich_node,
     enrich_node,
     extract_node,
@@ -21,9 +21,9 @@ from litopri.agent.nodes import (
     search_node,
     synthesize_node,
 )
-from litopri.agent.state import IterationBudget, PipelineState, QualityMetrics
-from litopri.config import Settings, get_settings
-from litopri.models import ParameterInput, PipelineResult
+from distribird.agent.state import IterationBudget, PipelineState, QualityMetrics
+from distribird.config import Settings, get_settings
+from distribird.models import ParameterInput, PipelineResult
 
 ProgressCallback = Callable[[str, dict[str, Any]], None] | None
 
@@ -160,7 +160,7 @@ async def run_parameter_graph(
 
     prior = final_state.get("prior")
     if prior is None:
-        from litopri.distributions.uninformative import wide_normal_prior
+        from distribird.distributions.uninformative import wide_normal_prior
 
         prior = wide_normal_prior(
             parameter.name,

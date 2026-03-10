@@ -9,9 +9,9 @@ import logging
 import httpx
 from openai import OpenAI
 
-from litopri.agent.extract import _llm_json_call
-from litopri.config import Settings
-from litopri.models import EnrichedContext, LiteratureEvidence, ParameterInput
+from distribird.agent.extract import _llm_json_call
+from distribird.config import Settings
+from distribird.models import EnrichedContext, LiteratureEvidence, ParameterInput
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ def judge_paper_relevance(
 
     Returns the number of LLM calls made.
     """
-    from litopri.agent.prompts import RELEVANCE_JUDGMENT
+    from distribird.agent.prompts import RELEVANCE_JUDGMENT
 
     unjudged = [p for p in papers if not p.relevance_snippet]
     if not unjudged:
@@ -363,7 +363,7 @@ def generate_search_queries(
     enrichment: EnrichedContext | None = None,
 ) -> list[str]:
     """Use LLM to generate search queries for a parameter."""
-    from litopri.agent.prompts import SEARCH_QUERY_GENERATION
+    from distribird.agent.prompts import SEARCH_QUERY_GENERATION
 
     prompt = SEARCH_QUERY_GENERATION.format(
         n_queries=settings.max_search_queries,
@@ -418,7 +418,7 @@ async def llm_deep_research(
     Note: these results may contain hallucinated references — DOIs should be
     cross-checked when possible.
     """
-    from litopri.agent.prompts import DEEP_RESEARCH_WEB
+    from distribird.agent.prompts import DEEP_RESEARCH_WEB
 
     prompt = DEEP_RESEARCH_WEB.format(
         name=parameter.name,

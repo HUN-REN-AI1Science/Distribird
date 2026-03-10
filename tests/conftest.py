@@ -2,8 +2,8 @@
 
 import pytest
 
-from litopri.config import Settings
-from litopri.models import ConstraintSpec, ParameterInput
+from distribird.config import Settings
+from distribird.models import ConstraintSpec, ParameterInput
 
 
 @pytest.fixture

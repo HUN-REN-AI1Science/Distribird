@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/LitoPri-Literature--informed%20Priors-8B5CF6?style=for-the-badge&labelColor=1a1a2e">
-    <img alt="LitoPri" src="https://img.shields.io/badge/LitoPri-Literature--informed%20Priors-6D28D9?style=for-the-badge&labelColor=f5f5f5">
+    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/Distribird-Literature--informed%20Priors-8B5CF6?style=for-the-badge&labelColor=1a1a2e">
+    <img alt="Distribird" src="https://img.shields.io/badge/Distribird-Literature--informed%20Priors-6D28D9?style=for-the-badge&labelColor=f5f5f5">
   </picture>
 </p>
 
@@ -20,18 +20,18 @@
 
 ---
 
-**LitoPri** turns a parameter name and description into a fully cited, publication-ready prior distribution.
+**Distribird** turns a parameter name and description into a fully cited, publication-ready prior distribution.
 It searches Semantic Scholar, OpenAlex, and LLM deep-research agents in parallel, extracts numerical values from papers, and fits the best-matching `scipy.stats` distribution via AIC selection.
 
 > *"I need a prior for maximum leaf area index of maize."*
 >
 > &rarr; `truncated_normal(mu=5.2, sigma=1.5, a=0, b=12)` &mdash; fitted from 6 peer-reviewed sources with full citations.
 
-## Why LitoPri?
+## Why Distribird?
 
 Bayesian calibration requires informative priors, but building them from literature is tedious.
 Researchers default to flat priors, losing valuable domain knowledge.
-LitoPri closes that gap: **describe your parameter, get a defensible prior in seconds.**
+Distribird closes that gap: **describe your parameter, get a defensible prior in seconds.**
 
 ## Architecture
 
@@ -68,15 +68,15 @@ START ─► Enrich ─► QueryGen ─► Search ─► RelevanceJudge ──�
 ### Install
 
 ```bash
-pip install litopri
+pip install distribird
 ```
 
 <details>
 <summary><strong>Development install</strong></summary>
 
 ```bash
-git clone https://github.com/HUN-REN-AI1Science/LitoPri.git
-cd litopri
+git clone https://github.com/HUN-REN-AI1Science/Distribird.git
+cd distribird
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest                     # 148 tests, all passing
@@ -85,14 +85,14 @@ pytest                     # 148 tests, all passing
 
 ### Configure
 
-LitoPri reads configuration from environment variables (prefix `LITOPRI_`) or a `.env` file in the project root.
+Distribird reads configuration from environment variables (prefix `DISTRIBIRD_`) or a `.env` file in the project root.
 
 ```bash
 # .env (or export these in your shell)
-LITOPRI_LLM_BASE_URL="http://localhost:4000"   # any OpenAI-compatible endpoint
-LITOPRI_LLM_API_KEY="your-key"
-LITOPRI_LLM_MODEL="gpt-4o"
-LITOPRI_SEMANTIC_SCHOLAR_API_KEY=""            # optional, increases rate limits
+DISTRIBIRD_LLM_BASE_URL="http://localhost:4000"   # any OpenAI-compatible endpoint
+DISTRIBIRD_LLM_API_KEY="your-key"
+DISTRIBIRD_LLM_MODEL="gpt-4o"
+DISTRIBIRD_SEMANTIC_SCHOLAR_API_KEY=""            # optional, increases rate limits
 ```
 
 **Sidebar behaviour in the Streamlit UI:**
@@ -108,8 +108,8 @@ LITOPRI_SEMANTIC_SCHOLAR_API_KEY=""            # optional, increases rate limits
 
 ```python
 import asyncio
-from litopri.agent.pipeline import run_parameter
-from litopri.models import ParameterInput, ConstraintSpec
+from distribird.agent.pipeline import run_parameter
+from distribird.models import ParameterInput, ConstraintSpec
 
 result = asyncio.run(run_parameter(
     ParameterInput(
@@ -129,9 +129,9 @@ print(result.prior.confidence.value) # high
 **REST API**
 
 ```bash
-litopri-api                          # starts on :8000
+distribird-api                          # starts on :8000
 
-curl -u demo:litopri2026 -X POST http://localhost:8000/api/v1/parameter \
+curl -u demo:distribird2026 -X POST http://localhost:8000/api/v1/parameter \
   -H "Content-Type: application/json" \
   -d '{"name":"max_lai","description":"Maximum leaf area index of maize","unit":"m2/m2"}'
 ```
@@ -139,7 +139,7 @@ curl -u demo:litopri2026 -X POST http://localhost:8000/api/v1/parameter \
 **Streamlit UI**
 
 ```bash
-streamlit run src/litopri/ui/app.py
+streamlit run src/distribird/ui/app.py
 ```
 
 ## Prior Fitting Strategy
@@ -156,9 +156,9 @@ All fitted distributions respect user-specified physical constraints (bounds).
 ## Export Formats
 
 ```python
-from litopri.export.json_export import export_json
-from litopri.export.r_export import export_r
-from litopri.export.python_export import export_python
+from distribird.export.json_export import export_json
+from distribird.export.r_export import export_r
+from distribird.export.python_export import export_python
 ```
 
 | Format | Output |
@@ -180,5 +180,5 @@ python examples/maize_bgcmuso/demo.py
 ```bash
 pytest                 # 148 tests
 ruff check src/ tests/ # lint
-mypy src/litopri/      # type checking (strict)
+mypy src/distribird/      # type checking (strict)
 ```

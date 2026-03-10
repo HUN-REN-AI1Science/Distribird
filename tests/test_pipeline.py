@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from litopri.agent.pipeline import run_batch, run_parameter
-from litopri.config import Settings
-from litopri.models import (
+from distribird.agent.pipeline import run_batch, run_parameter
+from distribird.config import Settings
+from distribird.models import (
     AgentFinding,
     ConfidenceLevel,
     ConstraintSpec,
@@ -58,9 +58,9 @@ def mock_papers():
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_pipeline_high_confidence(
     mock_queries, mock_search, mock_extract, parameter, settings, mock_papers
 ):
@@ -77,9 +77,9 @@ async def test_pipeline_high_confidence(
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_pipeline_no_evidence(mock_queries, mock_search, mock_extract, parameter, settings):
     mock_queries.return_value = ["maize LAI"]
     mock_search.return_value = []
@@ -92,9 +92,9 @@ async def test_pipeline_no_evidence(mock_queries, mock_search, mock_extract, par
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.generate_search_queries")
 async def test_run_batch_parallel(mock_queries, mock_search, mock_extract, settings):
     """Verify run_batch processes multiple parameters concurrently."""
     params = [
@@ -134,8 +134,8 @@ async def test_run_batch_parallel(mock_queries, mock_search, mock_extract, setti
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.extract.extract_all_values")
+@patch("distribird.agent.search.generate_search_queries")
 async def test_pipeline_with_deliberation(
     mock_queries,
     mock_extract,
@@ -172,12 +172,12 @@ async def test_pipeline_with_deliberation(
 
     with (
         patch(
-            "litopri.agent.deliberation.run_source_agents",
+            "distribird.agent.deliberation.run_source_agents",
             new_callable=AsyncMock,
             return_value=mock_deliberation.agent_findings,
         ),
         patch(
-            "litopri.agent.deliberation.deliberate",
+            "distribird.agent.deliberation.deliberate",
             new_callable=AsyncMock,
             return_value=mock_deliberation,
         ),

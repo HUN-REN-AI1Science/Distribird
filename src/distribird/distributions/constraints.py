@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from litopri.models import ConstraintSpec
+from distribird.models import ConstraintSpec
 
 
 def check_value_in_bounds(value: float, constraint: ConstraintSpec) -> bool:

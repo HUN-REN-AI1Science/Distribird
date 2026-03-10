@@ -4,14 +4,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from litopri.agent.deliberation import (
+from distribird.agent.deliberation import (
     _build_deliberation_prompt,
     _deduplicate_across_agents,
     deliberate,
     run_source_agents,
 )
-from litopri.config import Settings
-from litopri.models import (
+from distribird.config import Settings
+from distribird.models import (
     AgentFinding,
     ConstraintSpec,
     DeliberationResult,
@@ -148,8 +148,8 @@ def test_build_deliberation_prompt(parameter):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.deliberation._llm_json_call")
-@patch("litopri.agent.deliberation.OpenAI")
+@patch("distribird.agent.deliberation._llm_json_call")
+@patch("distribird.agent.deliberation.OpenAI")
 async def test_deliberate_with_mock_llm(mock_openai, mock_llm_call, parameter, settings):
     findings = [
         AgentFinding(
@@ -191,8 +191,8 @@ async def test_deliberate_with_mock_llm(mock_openai, mock_llm_call, parameter, s
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.deliberation._llm_json_call")
-@patch("litopri.agent.deliberation.OpenAI")
+@patch("distribird.agent.deliberation._llm_json_call")
+@patch("distribird.agent.deliberation.OpenAI")
 async def test_deliberate_llm_failure_fallback(mock_openai, mock_llm_call, parameter, settings):
     findings = [
         AgentFinding(
@@ -247,8 +247,8 @@ async def test_deliberate_empty_findings(parameter, settings):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.deliberation.DeepResearchAgent")
-@patch("litopri.agent.deliberation.SemanticScholarAgent")
+@patch("distribird.agent.deliberation.DeepResearchAgent")
+@patch("distribird.agent.deliberation.SemanticScholarAgent")
 async def test_run_source_agents_parallel(mock_s2_cls, mock_deep_cls, parameter, settings):
     s2_instance = mock_s2_cls.return_value
     s2_instance.name = "semantic_scholar"
@@ -278,8 +278,8 @@ async def test_run_source_agents_parallel(mock_s2_cls, mock_deep_cls, parameter,
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.deliberation.DeepResearchAgent")
-@patch("litopri.agent.deliberation.SemanticScholarAgent")
+@patch("distribird.agent.deliberation.DeepResearchAgent")
+@patch("distribird.agent.deliberation.SemanticScholarAgent")
 async def test_run_source_agents_one_fails(mock_s2_cls, mock_deep_cls, parameter, settings):
     s2_instance = mock_s2_cls.return_value
     s2_instance.name = "semantic_scholar"

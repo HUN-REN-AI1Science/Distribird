@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from litopri.agent.search import fetch_citations, snowball_papers
-from litopri.config import Settings
-from litopri.models import LiteratureEvidence
+from distribird.agent.search import fetch_citations, snowball_papers
+from distribird.config import Settings
+from distribird.models import LiteratureEvidence
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def _s2_citation_response(n, direction="citations"):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.search.httpx.AsyncClient")
+@patch("distribird.agent.search.httpx.AsyncClient")
 async def test_fetch_citations_forward(mock_client_cls, settings):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
@@ -60,7 +60,7 @@ async def test_fetch_citations_forward(mock_client_cls, settings):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.search.httpx.AsyncClient")
+@patch("distribird.agent.search.httpx.AsyncClient")
 async def test_fetch_references_backward(mock_client_cls, settings):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
@@ -79,8 +79,8 @@ async def test_fetch_references_backward(mock_client_cls, settings):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.search.fetch_citations", new_callable=AsyncMock)
-@patch("litopri.agent.search.asyncio.sleep", new_callable=AsyncMock)
+@patch("distribird.agent.search.fetch_citations", new_callable=AsyncMock)
+@patch("distribird.agent.search.asyncio.sleep", new_callable=AsyncMock)
 async def test_snowball_dedup(mock_sleep, mock_fetch, settings):
     """Snowball deduplicates by DOI across seeds and existing papers."""
     # Both seeds return some overlapping papers
@@ -110,7 +110,7 @@ async def test_snowball_dedup(mock_sleep, mock_fetch, settings):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.search.httpx.AsyncClient")
+@patch("distribird.agent.search.httpx.AsyncClient")
 async def test_snowball_oa_filter(mock_client_cls, settings):
     """Non-OA papers are excluded."""
     mock_resp = MagicMock()

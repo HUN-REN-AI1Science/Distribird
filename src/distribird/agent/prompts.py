@@ -1,4 +1,4 @@
-"""All LLM prompt templates for LitoPri."""
+"""All LLM prompt templates for Distribird."""
 
 MODEL_RESEARCH = """\
 You are a scientific modeling expert. Given the following domain context, \

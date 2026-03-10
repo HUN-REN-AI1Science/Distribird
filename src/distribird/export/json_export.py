@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from litopri.models import BatchResult, PipelineResult
+from distribird.models import BatchResult, PipelineResult
 
 
 def result_to_dict(result: PipelineResult) -> dict[str, object]:
@@ -33,7 +33,7 @@ def result_to_dict(result: PipelineResult) -> dict[str, object]:
 def export_json(batch: BatchResult, indent: int = 2) -> str:
     """Export batch results as a JSON string."""
     data = {
-        "litopri_version": "0.1.0",
+        "distribird_version": "0.1.0",
         "parameters": [result_to_dict(r) for r in batch.results],
         "metadata": batch.metadata,
     }

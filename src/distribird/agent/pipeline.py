@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from litopri.agent.graph import ProgressCallback, run_parameter_graph
-from litopri.config import Settings, get_settings
-from litopri.models import (
+from distribird.agent.graph import ProgressCallback, run_parameter_graph
+from distribird.config import Settings, get_settings
+from distribird.models import (
     BatchResult,
     ParameterInput,
     PipelineResult,
@@ -41,7 +41,7 @@ async def run_batch(
                 return await run_parameter(param, settings)
             except Exception as e:
                 logger.error(f"Pipeline failed for '{param.name}': {e}")
-                from litopri.distributions.uninformative import wide_normal_prior
+                from distribird.distributions.uninformative import wide_normal_prior
 
                 fallback_prior = wide_normal_prior(
                     param.name,

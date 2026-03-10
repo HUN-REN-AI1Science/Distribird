@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from litopri.agent.enrich import enrich_parameter, enrich_parameter_context, research_model
-from litopri.config import Settings
-from litopri.models import ConstraintSpec, EnrichedContext, ParameterInput
+from distribird.agent.enrich import enrich_parameter, enrich_parameter_context, research_model
+from distribird.config import Settings
+from distribird.models import ConstraintSpec, EnrichedContext, ParameterInput
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ def _mock_llm_response(content: str) -> MagicMock:
 
 
 class TestResearchModel:
-    @patch("litopri.agent.enrich.OpenAI")
+    @patch("distribird.agent.enrich.OpenAI")
     def test_research_model(self, mock_openai_cls, settings):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
@@ -60,7 +60,7 @@ class TestResearchModel:
 
 
 class TestEnrichParameter:
-    @patch("litopri.agent.enrich.OpenAI")
+    @patch("distribird.agent.enrich.OpenAI")
     def test_enrich_parameter(self, mock_openai_cls, parameter, settings):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
@@ -85,8 +85,8 @@ class TestEnrichParameter:
 
 
 class TestEnrichParameterContext:
-    @patch("litopri.agent.enrich.enrich_parameter")
-    @patch("litopri.agent.enrich.research_model")
+    @patch("distribird.agent.enrich.enrich_parameter")
+    @patch("distribird.agent.enrich.research_model")
     def test_cache_miss_populates(self, mock_research, mock_enrich, parameter, settings):
         mock_research.return_value = "Model summary text"
         mock_enrich.return_value = EnrichedContext(
@@ -101,8 +101,8 @@ class TestEnrichParameterContext:
         assert cache["Biome-BGCMuSo maize crop modeling"] == "Model summary text"
         assert result.common_terminology == ["term1"]
 
-    @patch("litopri.agent.enrich.enrich_parameter")
-    @patch("litopri.agent.enrich.research_model")
+    @patch("distribird.agent.enrich.enrich_parameter")
+    @patch("distribird.agent.enrich.research_model")
     def test_cache_hit(self, mock_research, mock_enrich, parameter, settings):
         mock_enrich.return_value = EnrichedContext(
             model_summary="Cached summary",
@@ -119,12 +119,12 @@ class TestEnrichParameterContext:
 
 class TestEnrichmentInPipeline:
     @pytest.mark.asyncio
-    @patch("litopri.agent.extract.extract_all_values")
-    @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-    @patch("litopri.agent.search.generate_search_queries")
+    @patch("distribird.agent.extract.extract_all_values")
+    @patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+    @patch("distribird.agent.search.generate_search_queries")
     async def test_enrichment_disabled(self, mock_queries, mock_search, mock_extract, settings):
-        from litopri.agent.pipeline import run_parameter
-        from litopri.models import ExtractedValue, LiteratureEvidence
+        from distribird.agent.pipeline import run_parameter
+        from distribird.models import ExtractedValue, LiteratureEvidence
 
         settings.enable_context_enrichment = False
         settings.enable_deliberation = False
@@ -163,15 +163,15 @@ class TestEnrichmentInPipeline:
         assert result.enrichment is None
 
     @pytest.mark.asyncio
-    @patch("litopri.agent.extract.extract_all_values")
-    @patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
-    @patch("litopri.agent.search.generate_search_queries")
-    @patch("litopri.agent.enrich.enrich_parameter_context")
+    @patch("distribird.agent.extract.extract_all_values")
+    @patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
+    @patch("distribird.agent.search.generate_search_queries")
+    @patch("distribird.agent.enrich.enrich_parameter_context")
     async def test_enrichment_failure_fallback(
         self, mock_enrich, mock_queries, mock_search, mock_extract, settings
     ):
-        from litopri.agent.pipeline import run_parameter
-        from litopri.models import ExtractedValue, LiteratureEvidence
+        from distribird.agent.pipeline import run_parameter
+        from distribird.models import ExtractedValue, LiteratureEvidence
 
         settings.enable_context_enrichment = True
         settings.enable_deliberation = False

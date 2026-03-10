@@ -5,10 +5,10 @@ import json
 
 import pytest
 
-from litopri.export.json_export import export_json, export_single_json
-from litopri.export.python_export import export_python, export_single_python
-from litopri.export.r_export import export_r, export_single_r
-from litopri.models import (
+from distribird.export.json_export import export_json, export_single_json
+from distribird.export.python_export import export_python, export_single_python
+from distribird.export.r_export import export_r, export_single_r
+from distribird.models import (
     BatchResult,
     ConfidenceLevel,
     DistributionFamily,
@@ -58,7 +58,7 @@ class TestJsonExport:
     def test_batch_json_valid(self, sample_batch):
         output = export_json(sample_batch)
         data = json.loads(output)
-        assert "litopri_version" in data
+        assert "distribird_version" in data
         assert len(data["parameters"]) == 1
 
 

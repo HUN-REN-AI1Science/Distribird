@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from litopri.agent.nodes import (
+from distribird.agent.nodes import (
     enrich_node,
     extract_node,
     fetch_fulltext_node,
@@ -16,9 +16,9 @@ from litopri.agent.nodes import (
     search_node,
     synthesize_node,
 )
-from litopri.agent.state import IterationBudget, PipelineState, QualityMetrics
-from litopri.config import Settings
-from litopri.models import (
+from distribird.agent.state import IterationBudget, PipelineState, QualityMetrics
+from distribird.config import Settings
+from distribird.models import (
     ConstraintSpec,
     ExtractedValue,
     LiteratureEvidence,
@@ -72,7 +72,7 @@ async def test_enrich_node_disabled():
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.search.generate_search_queries")
+@patch("distribird.agent.search.generate_search_queries")
 async def test_query_gen_node(mock_gen):
     mock_gen.return_value = ["maize LAI", "corn leaf area"]
     state = _make_state()
@@ -82,7 +82,7 @@ async def test_query_gen_node(mock_gen):
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.search.search_all_queries", new_callable=AsyncMock)
+@patch("distribird.agent.search.search_all_queries", new_callable=AsyncMock)
 async def test_search_node(mock_search):
     papers = [
         LiteratureEvidence(title="P1", doi="10.1/a"),
@@ -102,7 +102,7 @@ async def test_fetch_fulltext_node_no_papers():
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.extract.extract_all_values")
+@patch("distribird.agent.extract.extract_all_values")
 async def test_extract_node(mock_extract):
     papers = [
         LiteratureEvidence(
@@ -212,7 +212,7 @@ def test_route_after_deliberation_cross_enrich():
 
 
 @pytest.mark.asyncio
-@patch("litopri.agent.search.judge_paper_relevance")
+@patch("distribird.agent.search.judge_paper_relevance")
 async def test_relevance_judge_node(mock_judge):
     mock_judge.return_value = 1  # 1 LLM call
     papers = [

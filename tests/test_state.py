@@ -1,6 +1,6 @@
 """Tests for LangGraph pipeline state and helpers."""
 
-from litopri.agent.state import (
+from distribird.agent.state import (
     IterationBudget,
     MessageKind,
     PipelineState,
@@ -10,7 +10,7 @@ from litopri.agent.state import (
     post_message,
     update_quality,
 )
-from litopri.models import ExtractedValue, LiteratureEvidence, ParameterInput
+from distribird.models import ExtractedValue, LiteratureEvidence, ParameterInput
 
 
 def _make_state(**overrides) -> PipelineState:
