@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Distribird" width="360">
+  <img src="https://raw.githubusercontent.com/HUN-REN-AI1Science/Distribird/main/assets/logo.svg" alt="Distribird" width="360">
 </p>
 
 <p align="center">
