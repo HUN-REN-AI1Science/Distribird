@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/Distribird-Literature--informed%20Priors-8B5CF6?style=for-the-badge&labelColor=1a1a2e">
-    <img alt="Distribird" src="https://img.shields.io/badge/Distribird-Literature--informed%20Priors-6D28D9?style=for-the-badge&labelColor=f5f5f5">
-  </picture>
+  <img src="assets/logo.svg" alt="Distribird" width="360">
 </p>
 
 <p align="center">

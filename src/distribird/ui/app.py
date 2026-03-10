@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
+
+_ASSETS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "assets"
 
 from distribird.agent.graph import NODE_META
 from distribird.agent.pipeline import run_parameter
@@ -821,16 +824,30 @@ def process_all_parameters(settings: Settings) -> None:
     st.session_state.is_running = False
 
 
+@st.dialog("Documentation", width="large")
+def _show_docs(docs_path: Path) -> None:
+    """Render the standalone docs HTML inside a Streamlit dialog."""
+    import streamlit.components.v1 as components
+
+    html_content = docs_path.read_text(encoding="utf-8")
+    components.html(html_content, height=700, scrolling=True)
+
+
 def main() -> None:
-    st.set_page_config(page_title="Distribird", page_icon="📊", layout="wide")
+    _logo_path = _ASSETS_DIR / "logo.svg"
+    _logo_svg = _logo_path.read_text() if _logo_path.exists() else None
+    st.set_page_config(page_title="Distribird", page_icon=_logo_svg, layout="wide")
     inject_custom_css()
+
+    if _logo_svg:
+        st.logo(_logo_svg, size="large")
 
     ls = hydrate_session_state()
 
     if not check_login():
         return
 
-    st.title("Distribird: Literature-informed Priors")
+    st.title("Distribird: Literature Informed Prior Generator")
     st.markdown(
         "Automatically search scientific literature and synthesize "
         "informative prior distributions for Bayesian model calibration."
@@ -880,6 +897,16 @@ def main() -> None:
     # Show persisted results (from previous runs, visible after rerun)
     if st.session_state.results and not st.session_state.is_running:
         render_results_section()
+
+    # Sidebar: documentation link (auto-open on first visit)
+    _docs_path = _ASSETS_DIR / "docs.html"
+    if _docs_path.exists():
+        if not st.session_state.get("_docs_shown"):
+            st.session_state["_docs_shown"] = True
+            _show_docs(_docs_path)
+        st.sidebar.markdown("---")
+        if st.sidebar.button("Documentation", icon=":material/menu_book:", use_container_width=True):
+            _show_docs(_docs_path)
 
     # Sidebar: clear saved settings
     st.sidebar.markdown("---")

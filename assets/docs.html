@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distribird — Literature Informed Prior Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Libre+Franklin:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafaf8;
+    --bg-warm: #f4f2ed;
+    --surface: #edeae4;
+    --border: #d8d4cc;
+    --text: #1a1a1a;
+    --text-body: #3d3d3d;
+    --text-dim: #7a7568;
+    --accent: #2d6a4f;
+    --accent-deep: #1b4332;
+    --accent-light: #d8f3dc;
+    --accent-glow: rgba(45,106,79,0.06);
+    --highlight: #b7e4c7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Libre Franklin', sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: var(--accent-deep);
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(183,228,199,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 50% at 85% 20%, rgba(45,106,79,0.2) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* subtle grid pattern */
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+  }
+
+  .hero-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 6rem 2.5rem 5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--highlight);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .hero-label::before {
+    content: '';
+    width: 28px;
+    height: 2px;
+    background: var(--highlight);
+    display: inline-block;
+  }
+
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2.4rem, 5vw, 3.4rem);
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 1.5rem;
+    max-width: 700px;
+  }
+
+  .hero h1 span {
+    color: var(--highlight);
+  }
+
+  .hero-desc {
+    font-size: 1.08rem;
+    font-weight: 300;
+    line-height: 1.8;
+    color: rgba(255,255,255,0.75);
+    max-width: 600px;
+  }
+
+  /* ── Section header ── */
+  .section-header {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 4rem 2.5rem 1rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
+  .section-header h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .section-header .line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .section-header .count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+
+  /* ── Cards grid ── */
+  .cards {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem 2.5rem 3rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem;
+    transition: box-shadow 0.25s, border-color 0.25s;
+    position: relative;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px var(--accent-glow), 0 1px 4px rgba(0,0,0,0.04);
+  }
+
+  .card-number {
+    font-family: 'Fraunces', serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--surface);
+    position: absolute;
+    top: 1.25rem;
+    right: 1.5rem;
+    line-height: 1;
+    user-select: none;
+  }
+
+  .card:hover .card-number {
+    color: var(--accent-light);
+  }
+
+  .card h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.6rem;
+    padding-right: 2rem;
+  }
+
+  .card p {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text-body);
+  }
+
+  .card .params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 1rem;
+  }
+
+  .card .params span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 400;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    background: var(--bg-warm);
+    color: var(--accent);
+    border: 1px solid var(--surface);
+    white-space: nowrap;
+  }
+
+  .card:hover .params span {
+    background: var(--accent-light);
+    border-color: var(--highlight);
+  }
+
+  /* wide card for last item */
+  .card.wide {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Summary ── */
+  .summary-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem 2.5rem 5rem;
+  }
+
+  .summary {
+    background: var(--accent-deep);
+    color: #fff;
+    border-radius: 12px;
+    padding: 2.5rem 3rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .summary::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(183,228,199,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .summary h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    position: relative;
+  }
+
+  .summary p {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: rgba(255,255,255,0.8);
+    max-width: 680px;
+    position: relative;
+  }
+
+  /* ── Footer ── */
+  footer {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 2.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+  }
+
+  footer .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    color: var(--accent);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    .hero-inner { padding: 4rem 1.5rem 3.5rem; }
+    .section-header { padding: 3rem 1.5rem 1rem; }
+    .cards {
+      grid-template-columns: 1fr;
+      padding: 1rem 1.5rem 2.5rem;
+    }
+    .card.wide { grid-column: auto; }
+    .summary-wrap { padding: 1rem 1.5rem 4rem; }
+    .summary { padding: 2rem 1.5rem; }
+    footer { padding: 1.5rem; flex-direction: column; gap: 0.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-label">Distribird</div>
+    <h1>Literature Informed <span>Prior Generator</span></h1>
+    <p class="hero-desc">Distribird synthesizes and fits prior distributions for Bayesian model calibration from published scientific literature. It extracts reported parameter values, ranges, and uncertainties across studies and returns fitted distributional forms ready for use in calibration workflows.</p>
+  </div>
+</section>
+
+<!-- ═══ USE CASES ═══ -->
+<div class="section-header">
+  <h2>Use cases by field</h2>
+  <div class="line"></div>
+  <div class="count">10 fields</div>
+</div>
+
+<div class="cards">
+
+  <div class="card">
+    <div class="card-number">01</div>
+    <h3>Climate &amp; Earth Sciences</h3>
+    <p>General circulation models contain parameters such as cloud microphysics coefficients and aerosol forcing terms that are difficult to constrain from observations alone. Literature-informed priors from satellite campaigns, reanalysis datasets, and prior modelling studies reduce the forward evaluations needed during calibration.</p>
+    <div class="params">
+      <span>cloud droplet number</span>
+      <span>aerosol optical depth</span>
+      <span>albedo feedback</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">02</div>
+    <h3>Pharmacokinetics &amp; Drug Development</h3>
+    <p>Population PK/PD models estimate clearance, absorption rate, and volume of distribution. When patient-level data is limited — pediatric populations, rare diseases, early-phase trials — priors fitted from published studies on related compounds or prior clinical phases provide meaningful constraint.</p>
+    <div class="params">
+      <span>clearance</span>
+      <span>volume of distribution</span>
+      <span>absorption rate constant</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">03</div>
+    <h3>Hydrology &amp; Water Resources</h3>
+    <p>Conceptual rainfall-runoff models (e.g. SWAT, HBV) have parameters such as hydraulic conductivity and infiltration capacity that vary spatially and are rarely measured directly. Priors can be synthesized from regionalization studies, soil databases, and calibration results for similar catchments.</p>
+    <div class="params">
+      <span>saturated hydraulic conductivity</span>
+      <span>field capacity</span>
+      <span>baseflow recession</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">04</div>
+    <h3>Structural &amp; Civil Engineering</h3>
+    <p>Finite element model updating requires estimating stiffness, damping ratios, and degradation rates from sensor measurements. Published material testing data and documented values from comparable structures provide a basis for constructing priors, particularly for structural health monitoring.</p>
+    <div class="params">
+      <span>Young's modulus</span>
+      <span>damping ratio</span>
+      <span>corrosion rate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">05</div>
+    <h3>Epidemiology &amp; Disease Modelling</h3>
+    <p>Compartmental models (SIR, SEIR, and variants) require transmission rates, incubation periods, and reporting fractions. During emerging outbreaks, observed data is scarce. Priors fitted from published parameters of related pathogens allow calibration to begin earlier and with greater stability.</p>
+    <div class="params">
+      <span>basic reproduction number</span>
+      <span>incubation period</span>
+      <span>case fatality rate</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">06</div>
+    <h3>Astrophysics &amp; Cosmology</h3>
+    <p>Cosmological parameter estimation from CMB power spectra, supernovae, or galaxy surveys involves correlated parameters. Priors from independent observational campaigns help break degeneracies and improve posterior precision when combining datasets.</p>
+    <div class="params">
+      <span>Hubble constant</span>
+      <span>matter density</span>
+      <span>dark energy EoS</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">07</div>
+    <h3>Ecology &amp; Population Dynamics</h3>
+    <p>Population models involve growth rates, carrying capacities, and dispersal coefficients that are difficult to estimate from sparse field observations. Meta-analyses and published demographic data from ecologically similar species can be synthesized into prior distributions to stabilize inference.</p>
+    <div class="params">
+      <span>intrinsic growth rate</span>
+      <span>carrying capacity</span>
+      <span>dispersal kernel width</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">08</div>
+    <h3>Geophysics &amp; Reservoir Engineering</h3>
+    <p>History matching in reservoir simulation calibrates permeability fields, porosity, and relative permeability curves against production data. The problem is severely underdetermined. Priors informed by well log interpretations, seismic inversions, and core analysis reduce non-uniqueness.</p>
+    <div class="params">
+      <span>permeability</span>
+      <span>porosity</span>
+      <span>relative perm. endpoints</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">09</div>
+    <h3>Robotics &amp; Autonomous Systems</h3>
+    <p>System identification for robot dynamics involves friction coefficients, inertial parameters, and sensor noise characteristics. Published manufacturer data, laboratory benchmarks, and prior deployment studies provide informative priors that improve sim-to-real transfer.</p>
+    <div class="params">
+      <span>Coulomb friction</span>
+      <span>link inertia</span>
+      <span>sensor bias</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-number">10</div>
+    <h3>Economics &amp; Finance</h3>
+    <p>Bayesian estimation of DSGE models involves structural parameters such as risk aversion, price stickiness (Calvo parameter), and policy reaction coefficients. These are typically informed by microeconometric estimates, and prior specification has a well-documented effect on posterior inference.</p>
+    <div class="params">
+      <span>risk aversion</span>
+      <span>Calvo parameter</span>
+      <span>Taylor rule coefficients</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ SUMMARY ═══ -->
+<div class="summary-wrap">
+  <div class="summary">
+    <h2>The common requirement</h2>
+    <p>Across all of these fields, the underlying challenge is the same: complex, computationally expensive models with parameters that cannot be fully identified from observational data alone. Distribird addresses this by systematically extracting parameter information from the published literature and fitting appropriate prior distributions — reducing computational cost and improving the reliability of posterior estimates.</p>
+  </div>
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="logo">Distribird</div>
+  <div>Literature Informed Prior Generator</div>
+</footer>
+
+
+
+</body></html>

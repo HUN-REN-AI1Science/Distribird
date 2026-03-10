@@ -48,6 +48,8 @@ _SIMPLE_KEYS: list[str] = [
     "dr_key_ov",
     "dr_model_ov",
     "oa_email_ov",
+    # First-visit tracking
+    "_docs_shown",
 ]
 
 
