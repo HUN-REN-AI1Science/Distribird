@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import httpx
 
+from distribird.agent.ratelimit import get_limiter, rate_limited_request
 from distribird.agent.search import _compute_relevance
 from distribird.config import Settings
 from distribird.models import LiteratureEvidence
@@ -57,8 +57,18 @@ async def search_openalex(
 
     logger.info("[OpenAlex:search] query=%r limit=%d", query, limit)
 
+    limiter = get_limiter("openalex", rate=settings.openalex_rate_limit)
+
     async with httpx.AsyncClient(timeout=settings.extraction_timeout) as client:
-        resp = await client.get(OPENALEX_BASE, params=params)
+        resp = await rate_limited_request(
+            client,
+            "GET",
+            OPENALEX_BASE,
+            limiter,
+            max_retries=settings.rate_limit_max_retries,
+            base_backoff=settings.rate_limit_base_backoff,
+            params=params,
+        )
         resp.raise_for_status()
         data = resp.json()
 
@@ -118,8 +128,6 @@ async def search_openalex_all_queries(
     logger.info("[OpenAlex:search_all] starting queries=%d", len(queries))
 
     for i, query in enumerate(queries):
-        if i > 0:
-            await asyncio.sleep(0.5)  # polite rate limiting
         try:
             results = await search_openalex(query, settings, limit=settings.max_papers_per_query)
             for paper in results:

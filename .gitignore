@@ -34,5 +34,12 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
+# Large model files
+models/
+*.gguf
+
+# Demo data cache (downloaded at runtime)
+demo/data/cache/
+
 # Claude Code
 .claude/

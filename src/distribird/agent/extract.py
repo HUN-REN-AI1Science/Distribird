@@ -29,6 +29,64 @@ def _strip_code_fences(text: str) -> str:
     return text
 
 
+def _try_repair_json(text: str) -> str | None:
+    """Attempt to repair truncated JSON by closing open brackets/braces.
+
+    Returns repaired text if successful, None otherwise.
+    """
+    # Try parsing as-is first
+    try:
+        json.loads(text)
+        return text
+    except json.JSONDecodeError:
+        pass
+
+    # Count unmatched delimiters and close them
+    stack: list[str] = []
+    in_string = False
+    escape = False
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in ("{", "["):
+            stack.append("}" if ch == "{" else "]")
+        elif ch in ("}", "]") and stack:
+            stack.pop()
+
+    if not stack:
+        return None
+
+    # Truncate trailing partial value (incomplete string, number, etc.)
+    # by finding the last complete key-value separator
+    trimmed = text.rstrip()
+    for end in (trimmed.rfind(","), trimmed.rfind('"'), trimmed.rfind("}")):
+        if end > 0:
+            candidate = trimmed[: end + 1].rstrip().rstrip(",")
+            candidate += "".join(reversed(stack))
+            try:
+                json.loads(candidate)
+                return candidate
+            except json.JSONDecodeError:
+                continue
+
+    # Last resort: just close everything
+    candidate = text.rstrip().rstrip(",") + "".join(reversed(stack))
+    try:
+        json.loads(candidate)
+        return candidate
+    except json.JSONDecodeError:
+        return None
+
+
 _JSON_SYSTEM_MSG = {
     "role": "system",
     "content": (
@@ -68,6 +126,11 @@ def _llm_json_call(
         try:
             return json.loads(text)
         except json.JSONDecodeError:
+            # Try to repair truncated JSON before retrying
+            repaired = _try_repair_json(text)
+            if repaired is not None:
+                logger.info("[LLM:json_retry] repaired truncated JSON")
+                return json.loads(repaired)
             if attempt < max_retries:
                 logger.info(
                     "[LLM:json_retry] attempt %d/%d failed, retrying",

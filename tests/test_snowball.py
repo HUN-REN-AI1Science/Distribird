@@ -41,14 +41,15 @@ def _s2_citation_response(n, direction="citations"):
 
 @pytest.mark.asyncio
 @patch("distribird.agent.search.httpx.AsyncClient")
-async def test_fetch_citations_forward(mock_client_cls, settings):
+@patch("distribird.agent.search.rate_limited_request", new_callable=AsyncMock)
+async def test_fetch_citations_forward(mock_rlr, mock_client_cls, settings):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = _s2_citation_response(3, "citations")
     mock_resp.raise_for_status = MagicMock()
+    mock_rlr.return_value = mock_resp
 
     mock_client = AsyncMock()
-    mock_client.get.return_value = mock_resp
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client_cls.return_value = mock_client
@@ -61,14 +62,15 @@ async def test_fetch_citations_forward(mock_client_cls, settings):
 
 @pytest.mark.asyncio
 @patch("distribird.agent.search.httpx.AsyncClient")
-async def test_fetch_references_backward(mock_client_cls, settings):
+@patch("distribird.agent.search.rate_limited_request", new_callable=AsyncMock)
+async def test_fetch_references_backward(mock_rlr, mock_client_cls, settings):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = _s2_citation_response(2, "references")
     mock_resp.raise_for_status = MagicMock()
+    mock_rlr.return_value = mock_resp
 
     mock_client = AsyncMock()
-    mock_client.get.return_value = mock_resp
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client_cls.return_value = mock_client
@@ -80,8 +82,7 @@ async def test_fetch_references_backward(mock_client_cls, settings):
 
 @pytest.mark.asyncio
 @patch("distribird.agent.search.fetch_citations", new_callable=AsyncMock)
-@patch("distribird.agent.search.asyncio.sleep", new_callable=AsyncMock)
-async def test_snowball_dedup(mock_sleep, mock_fetch, settings):
+async def test_snowball_dedup(mock_fetch, settings):
     """Snowball deduplicates by DOI across seeds and existing papers."""
     # Both seeds return some overlapping papers
     mock_fetch.side_effect = [
@@ -111,7 +112,8 @@ async def test_snowball_dedup(mock_sleep, mock_fetch, settings):
 
 @pytest.mark.asyncio
 @patch("distribird.agent.search.httpx.AsyncClient")
-async def test_snowball_oa_filter(mock_client_cls, settings):
+@patch("distribird.agent.search.rate_limited_request", new_callable=AsyncMock)
+async def test_snowball_oa_filter(mock_rlr, mock_client_cls, settings):
     """Non-OA papers are excluded."""
     mock_resp = MagicMock()
     resp_data = {
@@ -142,9 +144,9 @@ async def test_snowball_oa_filter(mock_client_cls, settings):
     }
     mock_resp.json.return_value = resp_data
     mock_resp.raise_for_status = MagicMock()
+    mock_rlr.return_value = mock_resp
 
     mock_client = AsyncMock()
-    mock_client.get.return_value = mock_resp
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     mock_client_cls.return_value = mock_client

@@ -77,14 +77,15 @@ def enrich_parameter(
         settings.llm_model,
     )
 
-    extra_body = _WEB_SEARCH_EXTRA_BODY if settings.llm_web_search else None
+    # No web search for enrichment — the model already has domain knowledge
+    # from research_model(), and web search results bloat context, causing
+    # JSON truncation/malformation for complex parameters.
     client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
     raw = _llm_json_call(
         client,
         settings.llm_model,
         [{"role": "user", "content": prompt}],
         temperature=0.3,
-        extra_body=extra_body,
     )
 
     if isinstance(raw, dict):
