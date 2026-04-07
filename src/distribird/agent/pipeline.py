@@ -26,7 +26,6 @@ class BatchProgressTracker:
     """Track and log progress across multiple concurrent parameters."""
 
     def __init__(self, parameters: list[ParameterInput]) -> None:
-        self._names = [p.name for p in parameters]
         self._total = len(parameters)
         self._status: dict[str, str] = {p.name: "queued" for p in parameters}
         self._completed = 0
@@ -70,20 +69,11 @@ class BatchProgressTracker:
             for name, status in self._status.items()
             if not status.startswith("DONE") and not status.startswith("FAILED") and status != "queued"
         ]
-        done = sum(
-            1 for s in self._status.values()
-            if s.startswith("DONE") or s.startswith("FAILED")
-        )
-        header = f"[{elapsed}] Progress: {done}/{self._total} complete"
+        header = f"[{elapsed}] Progress: {self._completed}/{self._total} complete"
         lines = [header]
         if active:
             lines.extend(active)
-        # Log each finished param that was just completed (last DONE/FAILED)
-        for name, status in self._status.items():
-            if status.startswith("DONE") or status.startswith("FAILED"):
-                pass  # already counted
         logger.info("\n".join(lines))
-        print("\n".join(lines), flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +108,7 @@ async def run_batch(
 
             def _on_node(node_name: str, state: dict[str, Any]) -> None:
                 if tracker:
-                    asyncio.get_event_loop().create_task(
+                    asyncio.create_task(
                         tracker.on_node(param.name, node_name, state)
                     )
 
