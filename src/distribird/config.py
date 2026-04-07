@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     total_llm_calls_max: int = 30
     min_values_for_synthesis: int = 2
 
+    # Rate limiting
+    s2_rate_limit: float = 0.9  # req/sec without API key (safety margin under 1/sec)
+    s2_rate_limit_with_key: float = 9.0  # req/sec with API key (under 10/sec)
+    openalex_rate_limit: float = 9.0  # req/sec (polite pool)
+    rate_limit_max_retries: int = 3  # max 429 retries
+    rate_limit_base_backoff: float = 2.0  # seconds, doubles each retry
+
     auth_username: str = "demo"
     auth_password: str = "changeme"
 

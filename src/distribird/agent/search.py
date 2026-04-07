@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 
@@ -10,10 +9,20 @@ import httpx
 from openai import OpenAI
 
 from distribird.agent.extract import _llm_json_call
+from distribird.agent.ratelimit import AsyncRateLimiter, get_limiter, rate_limited_request
 from distribird.config import Settings
 from distribird.models import EnrichedContext, LiteratureEvidence, ParameterInput
 
 logger = logging.getLogger(__name__)
+
+
+def _get_s2_limiter(settings: Settings) -> AsyncRateLimiter:
+    """Return the shared Semantic Scholar rate limiter, respecting API key."""
+    has_key = bool(settings.semantic_scholar_api_key)
+    rate = settings.s2_rate_limit_with_key if has_key else settings.s2_rate_limit
+    name = "s2_with_key" if has_key else "s2_no_key"
+    return get_limiter(name, rate=rate)
+
 
 # Deep research confidence → relevance_score mapping
 _CONFIDENCE_TO_RELEVANCE = {"high": 0.5, "medium": 0.3, "low": 0.1}
@@ -66,9 +75,16 @@ async def search_semantic_scholar(
         settings.semantic_scholar_base_url,
     )
 
+    limiter = _get_s2_limiter(settings)
+
     async with httpx.AsyncClient(timeout=settings.extraction_timeout) as client:
-        resp = await client.get(
+        resp = await rate_limited_request(
+            client,
+            "GET",
             f"{settings.semantic_scholar_base_url}/paper/search",
+            limiter,
+            max_retries=settings.rate_limit_max_retries,
+            base_backoff=settings.rate_limit_base_backoff,
             params=params,
             headers=headers,
         )
@@ -135,8 +151,6 @@ async def search_all_queries(
     logger.info("[S2:search_all] starting queries=%d", len(queries))
 
     for i, query in enumerate(queries):
-        if i > 0:
-            await asyncio.sleep(1.1)  # Semantic Scholar rate limit: ~1 req/sec
         try:
             results = await search_semantic_scholar(
                 query, settings, limit=settings.max_papers_per_query
@@ -255,9 +269,19 @@ async def fetch_citations(
 
     logger.info("[S2:snowball] paper=%s direction=%s limit=%d", paper_id, direction, limit)
 
+    limiter = _get_s2_limiter(settings)
+
     try:
         async with httpx.AsyncClient(timeout=settings.extraction_timeout) as client:
-            resp = await client.get(url, headers=headers)
+            resp = await rate_limited_request(
+                client,
+                "GET",
+                url,
+                limiter,
+                max_retries=settings.rate_limit_max_retries,
+                base_backoff=settings.rate_limit_base_backoff,
+                headers=headers,
+            )
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
@@ -325,7 +349,6 @@ async def snowball_papers(
             continue
         paper_id = f"DOI:{seed.doi}"
         for direction in ("citations", "references"):
-            await asyncio.sleep(1.1)  # S2 rate limit
             found = await fetch_citations(paper_id, settings, direction, limit_per_seed)
             for p in found:
                 doi = p.doi.strip().lower() if p.doi else None
@@ -510,9 +533,19 @@ async def verify_paper_doi(
 
     logger.info("[S2:verify] looking up DOI=%s", doi)
 
+    limiter = _get_s2_limiter(settings)
+
     try:
         async with httpx.AsyncClient(timeout=settings.extraction_timeout) as client:
-            resp = await client.get(url, headers=headers)
+            resp = await rate_limited_request(
+                client,
+                "GET",
+                url,
+                limiter,
+                max_retries=settings.rate_limit_max_retries,
+                base_backoff=settings.rate_limit_base_backoff,
+                headers=headers,
+            )
 
         if resp.status_code == 404:
             logger.info("[S2:verify] DOI=%s not found (404)", doi)
@@ -565,8 +598,6 @@ async def verify_deep_research_papers(
     discarded = 0
 
     for i, paper in enumerate(papers):
-        if i > 0:
-            await asyncio.sleep(1.1)  # S2 rate limit
         result = await verify_paper_doi(paper, settings)
         if result is not None:
             verified.append(result)
