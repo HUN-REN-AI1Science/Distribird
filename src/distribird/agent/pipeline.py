@@ -67,7 +67,7 @@ class BatchProgressTracker:
         active = [
             f"  {name}: {status}"
             for name, status in self._status.items()
-            if not status.startswith("DONE") and not status.startswith("FAILED") and status != "queued"
+            if not status.startswith(("DONE", "FAILED")) and status != "queued"
         ]
         header = f"[{elapsed}] Progress: {self._completed}/{self._total} complete"
         lines = [header]

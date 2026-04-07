@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 def _get_s2_limiter(settings: Settings) -> AsyncRateLimiter:
     """Return the shared Semantic Scholar rate limiter, respecting API key."""
-    rate = settings.s2_rate_limit_with_key if settings.semantic_scholar_api_key else settings.s2_rate_limit
+    has_key = settings.semantic_scholar_api_key
+    rate = settings.s2_rate_limit_with_key if has_key else settings.s2_rate_limit
     return get_limiter("semantic_scholar", rate=rate)
 
 # Deep research confidence → relevance_score mapping
