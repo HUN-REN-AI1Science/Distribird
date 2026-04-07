@@ -59,7 +59,7 @@ def _try_repair_json(text: str) -> str | None:
             continue
         if ch in ("{", "["):
             stack.append("}" if ch == "{" else "]")
-        elif ch in ("}", "]") and stack:
+        elif ch in ("}", "]") and stack and ch == stack[-1]:
             stack.pop()
 
     if not stack:

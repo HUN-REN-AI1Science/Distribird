@@ -11,7 +11,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Token-bucket rate limiter
+# Fixed-interval rate limiter
 # ---------------------------------------------------------------------------
 
 class AsyncRateLimiter:
@@ -32,6 +32,8 @@ class AsyncRateLimiter:
     """
 
     def __init__(self, rate: float, burst: int = 1) -> None:
+        if rate <= 0:
+            raise ValueError(f"rate must be positive, got {rate}")
         self.rate = rate
         self.burst = burst
         self._interval = 1.0 / rate

@@ -101,7 +101,10 @@ async def fetch_paper_fulltext(
             # Simple 429 retry for diverse PDF hosts (no shared limiter needed)
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
-                delay = float(retry_after) if retry_after else 5.0
+                try:
+                    delay = float(retry_after) if retry_after else 5.0
+                except (ValueError, TypeError):
+                    delay = 5.0
                 logger.info("[fulltext] 429 from %s — retrying in %.1fs", paper.pdf_url, delay)
                 await asyncio.sleep(delay)
                 resp = await client.get(paper.pdf_url)
