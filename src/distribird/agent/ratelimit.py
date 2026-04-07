@@ -123,4 +123,4 @@ async def rate_limited_request(
                 url,
             )
 
-    return resp  # type: ignore[possibly-undefined]  # loop always runs ≥1
+    return resp
