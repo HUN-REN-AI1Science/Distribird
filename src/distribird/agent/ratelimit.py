@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Fixed-interval rate limiter
 # ---------------------------------------------------------------------------
 
+
 class AsyncRateLimiter:
     """Fixed-interval rate limiter shared across all async coroutines.
 
@@ -72,6 +73,7 @@ def reset_limiters() -> None:
 # Rate-limited HTTP request with 429 retry
 # ---------------------------------------------------------------------------
 
+
 async def rate_limited_request(
     client: httpx.AsyncClient,
     method: str,
@@ -104,9 +106,9 @@ async def rate_limited_request(
             try:
                 delay = float(retry_after)
             except ValueError:
-                delay = base_backoff * (2 ** attempt)
+                delay = base_backoff * (2**attempt)
         else:
-            delay = base_backoff * (2 ** attempt)
+            delay = base_backoff * (2**attempt)
 
         if attempt < max_retries:
             logger.warning(

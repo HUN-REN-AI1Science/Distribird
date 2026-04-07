@@ -23,6 +23,7 @@ def _get_s2_limiter(settings: Settings) -> AsyncRateLimiter:
     name = "s2_with_key" if has_key else "s2_no_key"
     return get_limiter(name, rate=rate)
 
+
 # Deep research confidence → relevance_score mapping
 _CONFIDENCE_TO_RELEVANCE = {"high": 0.5, "medium": 0.3, "low": 0.1}
 

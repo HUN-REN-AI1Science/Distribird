@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Batch progress tracker
 # ---------------------------------------------------------------------------
 
+
 class BatchProgressTracker:
     """Track and log progress across multiple concurrent parameters."""
 
@@ -80,6 +81,7 @@ class BatchProgressTracker:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 async def run_parameter(
     parameter: ParameterInput,
     settings: Settings | None = None,
@@ -108,9 +110,7 @@ async def run_batch(
 
             def _on_node(node_name: str, state: dict[str, Any]) -> None:
                 if tracker:
-                    asyncio.create_task(
-                        tracker.on_node(param.name, node_name, state)
-                    )
+                    asyncio.create_task(tracker.on_node(param.name, node_name, state))
 
             try:
                 result = await run_parameter(param, settings, _on_node)
