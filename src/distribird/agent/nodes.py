@@ -355,6 +355,101 @@ async def synthesize_node(state: PipelineState) -> dict[str, object]:
     }
 
 
+async def validity_check_node(state: PipelineState) -> dict[str, object]:
+    """Classify whether the requested parameter is a real, empirically-measured quantity.
+
+    Runs after synthesize. Uses passive heuristics first; optionally runs a single
+    LLM probe for ambiguous (SUSPICIOUS) cases when budget allows.
+    """
+    t0 = time.time()
+    settings = _settings_from_state(state)
+    warnings = list(state.get("warnings", []))
+    traces = list(state.get("trace_events", []))
+
+    from distribird.agent.validity import (
+        apply_probe_verdict,
+        classify_validity_passive,
+        validity_probe_llm,
+    )
+    from distribird.models import ParameterValidity
+
+    if not settings.enable_validity_check:
+        traces.append(_trace("validity_check", t0, {"skipped": True}))
+        return {
+            "parameter_validity": ParameterValidity.UNKNOWN,
+            "validity_reason": "",
+            "validity_signals": {},
+            "is_empirical": None,
+            "warnings": warnings,
+            "trace_events": traces,
+        }
+
+    enrichment = state.get("enrichment")
+    prior = state.get("prior")
+    parameter = state["parameter"]
+    papers = state.get("all_papers", [])
+    queries = state.get("all_queries_tried", []) or state.get("search_queries", [])
+    quality = state.get("quality") or update_quality(state)
+
+    verdict, reason, signals, is_empirical = classify_validity_passive(
+        enrichment=enrichment,
+        prior=prior,
+        papers_found=len(papers),
+        values_extracted=quality.n_total_values,
+        queries_tried=len(queries),
+    )
+
+    probe_called = False
+    budget = state.get("budget", IterationBudget())
+
+    if (
+        verdict == ParameterValidity.SUSPICIOUS
+        and settings.enable_validity_probe
+        and budget.has_budget()
+    ):
+        probe_result = validity_probe_llm(
+            parameter=parameter,
+            enrichment=enrichment,
+            signals=signals,
+            settings=settings,
+        )
+        probe_called = True
+        budget.consume_llm_call()
+        verdict, reason, is_empirical = apply_probe_verdict(
+            passive_verdict=verdict,
+            passive_reason=reason,
+            passive_is_empirical=is_empirical,
+            probe_result=probe_result,
+        )
+        signals["probe_result"] = probe_result
+
+    if verdict in (ParameterValidity.LIKELY_INVALID, ParameterValidity.SUSPICIOUS):
+        label = verdict.value.replace("_", " ").upper()
+        warnings.append(f"Parameter validity: {label} — {reason}")
+
+    traces.append(
+        _trace(
+            "validity_check",
+            t0,
+            {
+                "verdict": verdict.value,
+                "probe_called": probe_called,
+                "is_empirical": is_empirical,
+            },
+        )
+    )
+
+    return {
+        "parameter_validity": verdict,
+        "validity_reason": reason,
+        "validity_signals": signals,
+        "is_empirical": is_empirical,
+        "warnings": warnings,
+        "budget": budget,
+        "trace_events": traces,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Feedback loop nodes
 # ---------------------------------------------------------------------------

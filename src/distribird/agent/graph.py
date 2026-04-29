@@ -20,10 +20,11 @@ from distribird.agent.nodes import (
     route_after_quality_gate,
     search_node,
     synthesize_node,
+    validity_check_node,
 )
 from distribird.agent.state import IterationBudget, PipelineState, QualityMetrics
 from distribird.config import Settings, get_settings
-from distribird.models import ParameterInput, PipelineResult
+from distribird.models import ParameterInput, ParameterValidity, PipelineResult
 
 ProgressCallback = Callable[[str, dict[str, Any]], None] | None
 
@@ -37,7 +38,8 @@ NODE_META: dict[str, tuple[str, float]] = {
     "fetch_fulltext": ("Fetching full-text papers", 0.10),
     "extract": ("Extracting numerical values", 0.20),
     "quality_gate": ("Evaluating extraction quality", 0.05),
-    "synthesize": ("Fitting prior distribution", 0.15),
+    "synthesize": ("Fitting prior distribution", 0.13),
+    "validity_check": ("Validating parameter", 0.02),
     # Loop nodes — zero weight so progress never goes backwards
     "refine_search": ("Refining search strategy", 0.0),
     "refine_extraction": ("Refining value extraction", 0.0),
@@ -57,6 +59,7 @@ def build_pipeline_graph() -> StateGraph:  # type: ignore[type-arg]
     graph.add_node("extract", extract_node)
     graph.add_node("quality_gate", quality_gate_node)
     graph.add_node("synthesize", synthesize_node)
+    graph.add_node("validity_check", validity_check_node)
 
     # Feedback loop nodes
     graph.add_node("refine_search", refine_search_node)
@@ -102,8 +105,9 @@ def build_pipeline_graph() -> StateGraph:  # type: ignore[type-arg]
     # Loop C: refine_extraction → quality_gate
     graph.add_edge("refine_extraction", "quality_gate")
 
-    # Synthesize → END
-    graph.add_edge("synthesize", END)
+    # Synthesize → validity_check → END
+    graph.add_edge("synthesize", "validity_check")
+    graph.add_edge("validity_check", END)
 
     return graph
 
@@ -179,4 +183,10 @@ async def run_parameter_graph(
         warnings=final_state.get("warnings", []),
         enrichment=final_state.get("enrichment"),
         deliberation=final_state.get("deliberation"),
+        parameter_validity=final_state.get(
+            "parameter_validity", ParameterValidity.UNKNOWN
+        ),
+        validity_reason=final_state.get("validity_reason", ""),
+        validity_signals=final_state.get("validity_signals", {}),
+        is_empirical=final_state.get("is_empirical"),
     )

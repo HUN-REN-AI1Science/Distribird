@@ -43,6 +43,9 @@ Return a JSON object with these fields:
 - "search_hints": [string, ...] (3-5 short keyword phrases optimized for literature search)
 - "application_context": string (extract ALL specific context from domain context that narrows down which literature is most relevant — this could be geographic region, climate zone, species/cultivar, soil type, management practice, experimental conditions, etc. Combine into a concise phrase. Return empty string if domain context is purely generic.)
 - "context_keywords": [string, ...] (3-6 keywords/phrases capturing the user's specific application context, useful for finding the most relevant papers. Include geographic terms, species names, condition descriptors, nearby regions with similar conditions, etc. Return empty array if domain context is purely generic.)
+- "is_recognized_parameter": boolean (TRUE if you recognize this as an established scientific parameter that appears in the literature. FALSE if the name looks fabricated, contains non-standard suffixes like '_xyz' or 'mumblesnort', or you have never encountered it. Misspellings of real parameters should still be TRUE with low recognition_confidence.)
+- "recognition_confidence": "high" | "medium" | "low" | "none" (your confidence in the recognition. Use "high" only for well-established named parameters; "none" for unrecognized strings.)
+- "empirically_measured": boolean (TRUE if this parameter is empirically measured in laboratory or field experiments. FALSE if it is purely theoretical, model-internal, or a calibration weight that cannot be directly measured.)
 
 IMPORTANT: Carefully analyze the domain context to extract ALL specifics that affect \
 which literature is most relevant. Parameter values in scientific literature vary by:
@@ -64,7 +67,42 @@ Example — Parameter: "allocation_ratio_root_leaf", Domain: "Biome-BGCMuSo maiz
   "enriched_description": "Root to leaf carbon allocation ratio in maize, controlling the partitioning of photosynthetic assimilates between belowground (root) and aboveground (leaf) biomass",
   "search_hints": ["maize root shoot ratio", "carbon partitioning maize roots", "biomass allocation cereal crops", "root fraction crop model", "maize Hungary Central Europe"],
   "application_context": "Hungary, Central Europe, Pannonian continental climate, maize",
-  "context_keywords": ["Hungary", "Central Europe", "continental climate", "Pannonian", "maize", "Carpathian Basin"]
+  "context_keywords": ["Hungary", "Central Europe", "continental climate", "Pannonian", "maize", "Carpathian Basin"],
+  "is_recognized_parameter": true,
+  "recognition_confidence": "high",
+  "empirically_measured": true
+}}
+"""
+
+PARAMETER_VALIDITY_PROBE = """\
+You are a strict scientific parameter validator. Decide whether the following parameter request \
+refers to a real, empirically-measured scientific quantity that should appear in peer-reviewed literature.
+
+Classify into exactly one of three verdicts:
+- "valid": A real, empirically-measured scientific parameter (e.g., specific_leaf_area, hubble_constant, soil_porosity).
+- "suspicious": Either (a) plausible-sounding but not standard terminology, or (b) a real concept that is theoretical / model-internal only and never empirically measured (e.g., calibration weights, latent variables in a specific model version).
+- "likely_invalid": Nonsense, fabricated, or pure jargon with no scientific reality (e.g., "mumblesnort_factor", "fake_quantum_correction_xyz").
+
+Parameter name: {name}
+Description: {description}
+Domain context: {domain_context}
+
+Enrichment LLM reported:
+- recognized as known parameter: {is_recognized}
+- recognition confidence: {recognition_confidence}
+- empirically measured: {empirically_measured}
+- common terminology found: {terminology}
+
+Pipeline observations:
+- queries tried: {n_queries}
+- papers found: {papers_found}
+- numerical values extracted: {values_extracted}
+
+Return ONLY a JSON object:
+{{
+  "verdict": "valid" | "suspicious" | "likely_invalid",
+  "is_empirical": true | false,
+  "reason": "<one concise sentence explaining the verdict>"
 }}
 """
 

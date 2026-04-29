@@ -98,12 +98,17 @@ def enrich_parameter(
             search_hints=raw.get("search_hints", []),
             application_context=raw.get("application_context", ""),
             context_keywords=raw.get("context_keywords", []),
+            is_recognized_parameter=raw.get("is_recognized_parameter"),
+            recognition_confidence=raw.get("recognition_confidence", "none"),
+            empirically_measured=raw.get("empirically_measured"),
         )
         logger.info(
-            "[LLM:enrich_param] param=%r terms=%r hints=%r",
+            "[LLM:enrich_param] param=%r terms=%r hints=%r recognized=%s empirical=%s",
             parameter.name,
             ctx.common_terminology,
             ctx.search_hints,
+            ctx.is_recognized_parameter,
+            ctx.empirically_measured,
         )
         return ctx
 

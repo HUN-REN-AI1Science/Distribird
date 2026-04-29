@@ -15,6 +15,7 @@ from distribird.models import (
     FittedPrior,
     LiteratureEvidence,
     ParameterInput,
+    ParameterValidity,
 )
 
 # ---------------------------------------------------------------------------
@@ -89,6 +90,9 @@ class IterationBudget(BaseModel):
     def has_budget(self) -> bool:
         return self.total_llm_calls_used < self.total_llm_calls_max
 
+    def consume_llm_call(self, count: int = 1) -> None:
+        self.total_llm_calls_used += count
+
 
 class TraceEvent(BaseModel):
     node: str
@@ -129,6 +133,12 @@ class PipelineState(TypedDict, total=False):
 
     # Observability
     trace_events: list[TraceEvent]
+
+    # Validity verdict (set by validity_check node)
+    parameter_validity: ParameterValidity
+    validity_reason: str
+    validity_signals: dict[str, object]
+    is_empirical: bool | None
 
 
 # ---------------------------------------------------------------------------

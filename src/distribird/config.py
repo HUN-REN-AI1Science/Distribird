@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     total_llm_calls_max: int = 30
     min_values_for_synthesis: int = 2
 
+    # BullshitBench: parameter validity detection
+    enable_validity_check: bool = True
+    enable_validity_probe: bool = True
+
     # Rate limiting
     s2_rate_limit: float = 0.9  # req/sec without API key (safety margin under 1/sec)
     s2_rate_limit_with_key: float = 9.0  # req/sec with API key (under 10/sec)
