@@ -134,8 +134,6 @@ def _render_required_fields(
         missing_llm.append(("LLM Base URL", "llm_url_req", "llm_base_url", False))
     if not defaults.llm_api_key:
         missing_llm.append(("LLM API Key", "llm_key_req", "llm_api_key", True))
-    if not defaults.llm_model:
-        missing_llm.append(("LLM Model", "llm_model_req", "llm_model", False))
 
     if use_s2 and not defaults.semantic_scholar_api_key:
         missing_llm.append(
@@ -166,15 +164,6 @@ def _render_required_fields(
                     True,
                 )
             )
-        if not defaults.deep_research_model:
-            missing_llm.append(
-                (
-                    "Deep Research Model",
-                    "dr_model_req",
-                    "deep_research_model",
-                    False,
-                )
-            )
 
     if missing_llm:
         st.sidebar.markdown("---")
@@ -192,46 +181,44 @@ def _render_required_fields(
     return overrides
 
 
-def _render_override_fields(
+def _render_connection_settings(
     defaults: Settings,
     use_s2: bool,
     use_deep: bool,
     use_openalex: bool,
 ) -> dict[str, str]:
-    """Render override inputs for connection fields that ARE provided in .env.
+    """Render connection-settings sections for LLM and Deep Research.
 
-    Only shown when the user enables the override toggle.
-    Returns a dict of field_name -> value for any overridden fields.
+    The LLM Model field is always shown; the Deep Research Model field is
+    shown when ``use_deep`` is on. Both display the .env value as
+    placeholder so the user can override the model name at any time. Base
+    URL / API Key (and S2 / OpenAlex email) remain hidden behind the
+    "Override configured settings" toggle, which is only rendered when
+    there is at least one configured value to override.
     """
-    # Collect which fields have .env values
-    has_llm = bool(defaults.llm_base_url and defaults.llm_api_key and defaults.llm_model)
+    has_llm_conn = bool(defaults.llm_base_url and defaults.llm_api_key)
     has_s2 = bool(defaults.semantic_scholar_api_key)
-    has_deep = bool(
-        defaults.deep_research_base_url
-        and defaults.deep_research_api_key
-        and defaults.deep_research_model
-    )
+    has_deep_conn = bool(defaults.deep_research_base_url and defaults.deep_research_api_key)
     has_oa = bool(defaults.openalex_email)
 
-    # Only show the toggle if there's something to override
     has_any_configured = (
-        has_llm or (use_s2 and has_s2) or (use_deep and has_deep) or (use_openalex and has_oa)
+        has_llm_conn
+        or (use_s2 and has_s2)
+        or (use_deep and has_deep_conn)
+        or (use_openalex and has_oa)
     )
-    if not has_any_configured:
-        return {}
 
     st.sidebar.markdown("---")
-    if "override_toggle" not in st.session_state:
-        st.session_state["override_toggle"] = False
-    override = st.sidebar.toggle("Override configured settings", key="override_toggle")
-    if not override:
-        return {}
+    override = False
+    if has_any_configured:
+        override = st.sidebar.toggle("Override configured settings", key="override_toggle")
 
     overrides: dict[str, str] = {}
 
-    if has_llm:
-        st.sidebar.subheader("LLM Settings")
-        st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
+    st.sidebar.subheader("LLM Settings")
+    st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
+    overrides["llm_model"] = _secret_input("Model", "llm_model_ov", defaults.llm_model)
+    if override and has_llm_conn:
         overrides["llm_base_url"] = _secret_input("Base URL", "llm_url_ov", defaults.llm_base_url)
         overrides["llm_api_key"] = _secret_input(
             "API Key",
@@ -239,41 +226,38 @@ def _render_override_fields(
             defaults.llm_api_key,
             password=True,
         )
-        overrides["llm_model"] = _secret_input("Model", "llm_model_ov", defaults.llm_model)
 
-    if use_s2 and has_s2:
+    if override and use_s2 and has_s2:
         st.sidebar.subheader("Semantic Scholar")
         overrides["semantic_scholar_api_key"] = _secret_input(
             "API Key", "s2_key_ov", defaults.semantic_scholar_api_key, password=True
         )
 
-    if use_deep and has_deep:
+    if use_deep:
         st.sidebar.subheader("Deep Research Model")
         st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
-        overrides["deep_research_base_url"] = _secret_input(
-            "Base URL",
-            "dr_url_ov",
-            defaults.deep_research_base_url,
-        )
-        overrides["deep_research_api_key"] = _secret_input(
-            "API Key",
-            "dr_key_ov",
-            defaults.deep_research_api_key,
-            password=True,
-        )
         overrides["deep_research_model"] = _secret_input(
             "Model",
             "dr_model_ov",
             defaults.deep_research_model,
         )
+        if override and has_deep_conn:
+            overrides["deep_research_base_url"] = _secret_input(
+                "Base URL",
+                "dr_url_ov",
+                defaults.deep_research_base_url,
+            )
+            overrides["deep_research_api_key"] = _secret_input(
+                "API Key",
+                "dr_key_ov",
+                defaults.deep_research_api_key,
+                password=True,
+            )
 
-    if use_openalex and has_oa:
+    if override and use_openalex and has_oa:
         st.sidebar.subheader("OpenAlex")
-        if "oa_email_ov" not in st.session_state:
-            st.session_state["oa_email_ov"] = defaults.openalex_email
-        overrides["openalex_email"] = st.sidebar.text_input(
-            "Email",
-            key="oa_email_ov",
+        overrides["openalex_email"] = _secret_input(
+            "Email", "oa_email_ov", defaults.openalex_email
         )
 
     return overrides
@@ -349,8 +333,8 @@ def get_settings_from_sidebar() -> Settings:
     # --- Required fields (missing from .env) ---
     required = _render_required_fields(defaults, use_s2, use_deep)
 
-    # --- Override toggle for .env-provided fields ---
-    overrides = _render_override_fields(defaults, use_s2, use_deep, use_openalex)
+    # --- Connection settings (Models always visible; URL/keys behind override toggle) ---
+    overrides = _render_connection_settings(defaults, use_s2, use_deep, use_openalex)
 
     # --- Search Settings ---
     st.sidebar.markdown("---")

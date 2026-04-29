@@ -34,11 +34,9 @@ _SIMPLE_KEYS: list[str] = [
     # Sidebar text inputs (required fields)
     "llm_url_req",
     "llm_key_req",
-    "llm_model_req",
     "s2_key_req",
     "dr_url_req",
     "dr_key_req",
-    "dr_model_req",
     # Sidebar text inputs (override fields)
     "llm_url_ov",
     "llm_key_ov",
