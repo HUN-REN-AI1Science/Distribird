@@ -70,6 +70,28 @@ CASES: list[TestCase] = [
         category="theoretical",
         constraints=ConstraintSpec(lower_bound=0, upper_bound=10),
     ),
+    TestCase(
+        name="kalman_filter_state_covariance_q11",
+        description=(
+            "The (1,1) element of the process noise covariance matrix Q used in a "
+            "Kalman filter; a latent state covariance hyperparameter not directly measurable"
+        ),
+        domain_context="state-space estimation / Kalman filtering",
+        expected=ParameterValidity.SUSPICIOUS,
+        category="theoretical",
+        constraints=ConstraintSpec(lower_bound=0, upper_bound=100),
+    ),
+    TestCase(
+        name="dssat_cropgro_root_growth_partition_factor_v45",
+        description=(
+            "Software-version-specific calibration factor controlling root growth "
+            "partitioning in DSSAT-CROPGRO version 4.5"
+        ),
+        domain_context="DSSAT crop simulation modeling",
+        expected=ParameterValidity.SUSPICIOUS,
+        category="theoretical",
+        constraints=ConstraintSpec(lower_bound=0, upper_bound=10),
+    ),
     # ── Real parameter (control) ──
     TestCase(
         name="specific_leaf_area",
@@ -128,7 +150,8 @@ def render_markdown(
     lines: list[str] = []
     lines.append("# BullshitBench — Real-LLM Run\n")
     lines.append(
-        "Real end-to-end pipeline runs (LLM enrichment + Semantic Scholar + extraction + validity check)\n"
+        "Real end-to-end pipeline runs "
+        "(LLM enrichment + Semantic Scholar + extraction + validity check)\n"
     )
 
     # ── Summary table ──

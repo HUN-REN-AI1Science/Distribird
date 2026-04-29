@@ -45,7 +45,13 @@ Return a JSON object with these fields:
 - "context_keywords": [string, ...] (3-6 keywords/phrases capturing the user's specific application context, useful for finding the most relevant papers. Include geographic terms, species names, condition descriptors, nearby regions with similar conditions, etc. Return empty array if domain context is purely generic.)
 - "is_recognized_parameter": boolean (TRUE if you recognize this as an established scientific parameter that appears in the literature. FALSE if the name looks fabricated, contains non-standard suffixes like '_xyz' or 'mumblesnort', or you have never encountered it. Misspellings of real parameters should still be TRUE with low recognition_confidence.)
 - "recognition_confidence": "high" | "medium" | "low" | "none" (your confidence in the recognition. Use "high" only for well-established named parameters; "none" for unrecognized strings.)
-- "empirically_measured": boolean (TRUE if this parameter is empirically measured in laboratory or field experiments. FALSE if it is purely theoretical, model-internal, or a calibration weight that cannot be directly measured.)
+- "empirically_measured": boolean (TRUE if this parameter is empirically measured in laboratory or field experiments. FALSE if it is purely theoretical, model-internal, or a calibration weight that cannot be directly measured. When in doubt about a model-specific parameter, prefer FALSE over leaving null/uncertain.)
+
+Red flags that strongly suggest empirically_measured=false:
+- Version suffixes in the name (_v1, _v2, _v3, _2024, _r5)
+- Software/model identifiers as a prefix (biome_bgcmuso_, dssat_, ctsm_, swat_)
+- Words like "calibration", "weight", "tuning", "fitted", "latent", "state", "covariance", "scaling_factor"
+- Internal configuration constants of a specific software version
 
 IMPORTANT: Carefully analyze the domain context to extract ALL specifics that affect \
 which literature is most relevant. Parameter values in scientific literature vary by:
@@ -59,7 +65,7 @@ the literature search prioritizes the most applicable studies.
 
 Return ONLY the JSON object, no other text.
 
-Example — Parameter: "allocation_ratio_root_leaf", Domain: "Biome-BGCMuSo maize crop modeling in Hungary"
+Example 1 — Parameter: "allocation_ratio_root_leaf", Domain: "Biome-BGCMuSo maize crop modeling in Hungary"
 {{
   "parameter_meaning": "The fraction of assimilated carbon allocated to roots relative to leaves, controlling belowground vs. aboveground biomass partitioning.",
   "common_terminology": ["root:shoot ratio", "carbon partitioning", "belowground allocation fraction", "root biomass allocation", "assimilate partitioning"],
@@ -71,6 +77,20 @@ Example — Parameter: "allocation_ratio_root_leaf", Domain: "Biome-BGCMuSo maiz
   "is_recognized_parameter": true,
   "recognition_confidence": "high",
   "empirically_measured": true
+}}
+
+Example 2 — Parameter: "biome_bgcmuso_root_decomp_q10_v3", Domain: "Biome-BGCMuSo maize crop modeling"
+{{
+  "parameter_meaning": "An internal calibration weight in Biome-BGCMuSo v3 controlling the temperature sensitivity (Q10) of root decomposition. This is a software-version-specific tuning parameter, not a measurable physical quantity.",
+  "common_terminology": ["Q10 temperature sensitivity", "root decomposition rate", "model calibration parameter"],
+  "typical_range": "Software-specific calibration; not a measurable quantity",
+  "enriched_description": "Q10 temperature sensitivity coefficient for root organic matter decomposition in soil",
+  "search_hints": ["Q10 root decomposition temperature sensitivity", "soil organic matter decomposition Q10"],
+  "application_context": "Biome-BGCMuSo crop modeling",
+  "context_keywords": ["Biome-BGCMuSo", "soil decomposition", "temperature sensitivity"],
+  "is_recognized_parameter": true,
+  "recognition_confidence": "medium",
+  "empirically_measured": false
 }}
 """
 

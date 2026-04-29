@@ -63,6 +63,14 @@ def _mk_paper(idx: int, title_prefix: str = "Paper") -> LiteratureEvidence:
     )
 
 
+def _mk_papers_no_values(count: int) -> list[LiteratureEvidence]:
+    """Papers without extracted values — for testing model-internal/calibration parameters."""
+    papers = [_mk_paper(i) for i in range(count)]
+    for p in papers:
+        p.extracted_values = []
+    return papers
+
+
 # ---------------------------------------------------------------------------
 # Helpers for mocking the pipeline
 # ---------------------------------------------------------------------------
@@ -188,9 +196,7 @@ async def test_plausible_sounding_fake_uses_probe(bullshit_settings):
         "A plausible-sounding but fabricated parameter",
     )
     # Two papers, but extraction yields zero values → ambiguous
-    papers = [_mk_paper(0), _mk_paper(1)]
-    for p in papers:
-        p.extracted_values = []
+    papers = _mk_papers_no_values(2)
 
     probe_response = {
         "verdict": "likely_invalid",
@@ -225,9 +231,7 @@ async def test_empirical_only_theoretical_param(bullshit_settings):
         "hypothetical_dark_carbon_pool",
         "Purely theoretical model term, never measured",
     )
-    papers = [_mk_paper(i) for i in range(5)]
-    for p in papers:
-        p.extracted_values = []
+    papers = _mk_papers_no_values(5)
 
     with ExitStack() as stack:
         _patch_pipeline(stack, enrichment, papers, extract_papers=[])
@@ -368,3 +372,77 @@ async def test_validity_signals_in_warnings(bullshit_settings):
         result = await run_parameter(param, bullshit_settings)
 
     assert any(w.startswith("Parameter validity:") for w in result.warnings)
+
+
+@pytest.mark.asyncio
+async def test_uncertain_empirical_calibration_weight(bullshit_settings):
+    """LLM uncertain about empirical status, papers exist, no values → Rule 4b → SUSPICIOUS."""
+    from distribird.agent.validity import REASON_EMPIRICAL_UNCLEAR
+
+    enrichment = EnrichedContext(
+        is_recognized_parameter=True,
+        recognition_confidence="medium",
+        empirically_measured=None,
+        common_terminology=["model parameter", "tuning weight"],
+    )
+    param = _mk_param(
+        "biome_bgcmuso_root_decomp_q10_v3",
+        "Calibration weight for root decomposition Q10 in Biome-BGCMuSo v3",
+    )
+    papers = _mk_papers_no_values(5)
+
+    # Empty probe reason so we can verify the passive Rule 4b reason survives
+    probe_response = {"verdict": "suspicious", "is_empirical": False, "reason": ""}
+    with ExitStack() as stack:
+        probe_mock = _patch_pipeline(
+            stack,
+            enrichment,
+            papers,
+            extract_papers=[],
+            probe_return=probe_response,
+        )
+        result = await run_parameter(param, bullshit_settings)
+
+    assert result.parameter_validity == ParameterValidity.SUSPICIOUS
+    assert REASON_EMPIRICAL_UNCLEAR in result.validity_reason
+    assert probe_mock.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_misclassified_empirical_passes_through_probe(bullshit_settings):
+    """Probe corrects an LLM error: parameter marked empirical but actually non-empirical.
+
+    Why: Rule 5 requires values_extracted >= MIN_VALUES_FOR_VALID, so 0 extracted
+    values blocks VALID even when the LLM mistakenly returned empirically_measured=True.
+    The verdict falls through to SUSPICIOUS where the probe corrects to LIKELY_INVALID.
+    """
+    enrichment = EnrichedContext(
+        is_recognized_parameter=True,
+        recognition_confidence="high",
+        empirically_measured=True,
+        common_terminology=["calibration weight"],
+    )
+    param = _mk_param("dssat_root_factor_v45")
+    no_refine_settings = bullshit_settings.model_copy(
+        update={"search_refinement_max": 0}
+    )
+    papers = _mk_papers_no_values(3)
+
+    probe_response = {
+        "verdict": "likely_invalid",
+        "is_empirical": False,
+        "reason": "version-specific calibration weight; LLM claim of empirical wrong",
+    }
+    with ExitStack() as stack:
+        probe_mock = _patch_pipeline(
+            stack,
+            enrichment,
+            papers,
+            extract_papers=[],
+            probe_return=probe_response,
+        )
+        result = await run_parameter(param, no_refine_settings)
+
+    assert probe_mock.call_count == 1
+    assert result.parameter_validity == ParameterValidity.LIKELY_INVALID
+    assert result.is_empirical is False  # probe corrected the LLM mistake

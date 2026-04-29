@@ -30,6 +30,21 @@ from distribird.models import (
 
 logger = logging.getLogger(__name__)
 
+# Minimum extracted values required to consider a literature-backed prior reliable.
+# Two values give the synthesizer enough signal to fit a Normal via moment matching
+# (single-value priors fall back to a wide Normal with LOW confidence).
+MIN_VALUES_FOR_VALID = 2
+
+REASON_NO_LITERATURE = "No literature found across {n} refined queries"
+REASON_LLM_UNRECOGNIZED = "LLM did not recognize the parameter and no literature was found"
+REASON_NO_TERMINOLOGY = "No domain terminology and no literature found"
+REASON_THEORETICAL_ONLY = "Theoretical/derived parameter, not empirically measured"
+REASON_EMPIRICAL_UNCLEAR = (
+    "Empirical status unclear; literature found but no measured values extractable"
+)
+REASON_LITERATURE_BACKED = "Recognized parameter with literature-backed prior"
+REASON_INSUFFICIENT_EVIDENCE = "Insufficient evidence for confident classification"
+
 
 class ProbeResult(BaseModel):
     """Parsed output of the LLM validity probe."""
@@ -73,7 +88,7 @@ def classify_validity_passive(
     if papers_found == 0 and values_extracted == 0 and queries_tried >= 2:
         return (
             ParameterValidity.LIKELY_INVALID,
-            f"No literature found across {queries_tried} refined queries",
+            REASON_NO_LITERATURE.format(n=queries_tried),
             signals,
             is_empirical,
         )
@@ -83,48 +98,25 @@ def classify_validity_passive(
         and recog_conf in {"none", "low"}
         and papers_found == 0
     ):
-        return (
-            ParameterValidity.LIKELY_INVALID,
-            "LLM did not recognize the parameter and no literature was found",
-            signals,
-            is_empirical,
-        )
+        return ParameterValidity.LIKELY_INVALID, REASON_LLM_UNRECOGNIZED, signals, is_empirical
 
     if n_terms == 0 and papers_found == 0:
-        return (
-            ParameterValidity.LIKELY_INVALID,
-            "No domain terminology and no literature found",
-            signals,
-            is_empirical,
-        )
+        return ParameterValidity.LIKELY_INVALID, REASON_NO_TERMINOLOGY, signals, is_empirical
 
-    if is_empirical is False and values_extracted == 0 and papers_found > 0:
-        return (
-            ParameterValidity.SUSPICIOUS,
-            "Theoretical/derived parameter, not empirically measured",
-            signals,
-            is_empirical,
-        )
+    if is_empirical is not True and values_extracted == 0 and papers_found > 0:
+        reason = REASON_THEORETICAL_ONLY if is_empirical is False else REASON_EMPIRICAL_UNCLEAR
+        return ParameterValidity.SUSPICIOUS, reason, signals, is_empirical
 
     if (
         prior_informative
         and prior_confidence in {ConfidenceLevel.HIGH, ConfidenceLevel.MEDIUM}
-        and is_recognized is not False
+        and is_recognized is True
+        and is_empirical is not False
+        and values_extracted >= MIN_VALUES_FOR_VALID
     ):
-        return (
-            ParameterValidity.VALID,
-            "Recognized parameter with literature-backed prior",
-            signals,
-            is_empirical,
-        )
+        return ParameterValidity.VALID, REASON_LITERATURE_BACKED, signals, is_empirical
 
-    # Rule 6 (default): ambiguous → suspicious, probe may upgrade
-    return (
-        ParameterValidity.SUSPICIOUS,
-        "Insufficient evidence for confident classification",
-        signals,
-        is_empirical,
-    )
+    return ParameterValidity.SUSPICIOUS, REASON_INSUFFICIENT_EVIDENCE, signals, is_empirical
 
 
 def validity_probe_llm(
