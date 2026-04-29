@@ -184,9 +184,15 @@ async def test_pure_nonsense_fake_xyz(bullshit_settings):
 
 @pytest.mark.asyncio
 async def test_plausible_sounding_fake_uses_probe(bullshit_settings):
-    """Plausible-sounding fake with a few unrelated papers → probe escalates to LIKELY_INVALID."""
+    """Plausible-sounding fake fools the enrichment LLM (passes early gate).
+
+    The enrichment LLM is fooled into setting is_recognized_parameter=True with
+    low confidence, so the early-skip route does NOT fire and the pipeline
+    proceeds through full search/extraction. The terminal validity_check then
+    invokes the probe to escalate the SUSPICIOUS verdict to LIKELY_INVALID.
+    """
     enrichment = EnrichedContext(
-        is_recognized_parameter=False,
+        is_recognized_parameter=True,  # LLM fooled by plausible name
         recognition_confidence="low",
         common_terminology=["chlorophyll fluorescence"],
         empirically_measured=None,
@@ -320,6 +326,62 @@ async def test_real_param_with_search_outage(bullshit_settings):
         result = await run_parameter(param, no_refine_settings)
 
     assert result.parameter_validity != ParameterValidity.LIKELY_INVALID
+
+
+@pytest.mark.asyncio
+async def test_early_skip_avoids_search_and_extract(bullshit_settings):
+    """Clear nonsense at enrich time short-circuits past search/extract/synthesize.
+
+    The enrichment LLM marks is_recognized_parameter=False with none confidence;
+    the route_after_enrich short-circuits to validity_check, so the search and
+    extract mocks should NOT be called.
+    """
+    from distribird.agent import extract as extract_mod
+    from distribird.agent import search as search_mod
+
+    enrichment = EnrichedContext(
+        is_recognized_parameter=False,
+        recognition_confidence="none",
+        common_terminology=[],
+    )
+    param = _mk_param("totally_fabricated_xyz")
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "distribird.agent.enrich.enrich_parameter_context",
+                return_value=enrichment,
+            )
+        )
+        gen_mock = stack.enter_context(
+            patch.object(search_mod, "generate_search_queries", return_value=["q"])
+        )
+        search_mock = stack.enter_context(
+            patch.object(
+                search_mod,
+                "search_all_queries",
+                new_callable=AsyncMock,
+                return_value=[],
+            )
+        )
+        extract_mock = stack.enter_context(
+            patch.object(extract_mod, "extract_all_values", return_value=[])
+        )
+        stack.enter_context(
+            patch(
+                "distribird.agent.validity.validity_probe_llm",
+                return_value=None,
+            )
+        )
+        result = await run_parameter(param, bullshit_settings)
+
+    assert result.parameter_validity == ParameterValidity.LIKELY_INVALID
+    # Critical: the expensive nodes were NOT called
+    assert gen_mock.call_count == 0, "query_gen should be skipped"
+    assert search_mock.call_count == 0, "search should be skipped"
+    assert extract_mock.call_count == 0, "extract should be skipped"
+    assert result.papers_found == 0
+    assert result.values_extracted == 0
 
 
 @pytest.mark.asyncio

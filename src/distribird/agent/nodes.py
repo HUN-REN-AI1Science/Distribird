@@ -745,6 +745,33 @@ def route_after_deliberation(state: PipelineState) -> str:
     return "fetch_fulltext"
 
 
+def route_after_enrich(state: PipelineState) -> str:
+    """Decide whether to run the full pipeline or short-circuit to validity_check.
+
+    The full search/extract/synthesize work is expensive (LLM calls, paper fetches,
+    PyMC fitting). When the enrichment LLM clearly does not recognize the
+    parameter as a real scientific quantity (is_recognized_parameter=False with
+    none/low confidence), there is no plausible path to a literature-backed
+    prior, so we route directly to the terminal validity_check node — which
+    will classify as LIKELY_INVALID without consulting empty paper/value sets.
+    """
+    settings = _settings_from_state(state)
+    if not settings.enable_validity_check:
+        return "query_gen"
+
+    enrichment = state.get("enrichment")
+    if enrichment is None:
+        return "query_gen"
+
+    if (
+        enrichment.is_recognized_parameter is False
+        and enrichment.recognition_confidence in {"none", "low"}
+    ):
+        return "validity_check"
+
+    return "query_gen"
+
+
 def route_after_quality_gate(state: PipelineState) -> str:
     """Route after quality gate: synthesize, refine search, or refine extraction."""
     quality = state.get("quality", QualityMetrics())

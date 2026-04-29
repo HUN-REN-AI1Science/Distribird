@@ -17,6 +17,7 @@ from distribird.agent.nodes import (
     refine_search_node,
     relevance_judge_node,
     route_after_deliberation,
+    route_after_enrich,
     route_after_quality_gate,
     search_node,
     synthesize_node,
@@ -68,7 +69,15 @@ def build_pipeline_graph() -> StateGraph:  # type: ignore[type-arg]
 
     # Main flow edges
     graph.add_edge(START, "enrich")
-    graph.add_edge("enrich", "query_gen")
+
+    # After enrich: short-circuit to validity_check if the LLM did not
+    # recognize the parameter — saves all downstream search/extract/synthesize
+    # work for clearly-invalid requests.
+    graph.add_conditional_edges(
+        "enrich",
+        route_after_enrich,
+        {"query_gen": "query_gen", "validity_check": "validity_check"},
+    )
     graph.add_edge("query_gen", "search")
 
     # After search → relevance judge → conditional: cross-enrich or fetch fulltext
