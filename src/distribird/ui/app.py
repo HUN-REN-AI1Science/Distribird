@@ -217,7 +217,6 @@ def _render_connection_settings(
 
     st.sidebar.subheader("LLM Settings")
     st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
-    overrides["llm_model"] = _secret_input("Model", "llm_model_ov", defaults.llm_model)
     if override and has_llm_conn:
         overrides["llm_base_url"] = _secret_input("Base URL", "llm_url_ov", defaults.llm_base_url)
         overrides["llm_api_key"] = _secret_input(
@@ -226,6 +225,7 @@ def _render_connection_settings(
             defaults.llm_api_key,
             password=True,
         )
+    overrides["llm_model"] = _secret_input("Model", "llm_model_ov", defaults.llm_model)
 
     if override and use_s2 and has_s2:
         st.sidebar.subheader("Semantic Scholar")
@@ -236,11 +236,6 @@ def _render_connection_settings(
     if use_deep:
         st.sidebar.subheader("Deep Research Model")
         st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
-        overrides["deep_research_model"] = _secret_input(
-            "Model",
-            "dr_model_ov",
-            defaults.deep_research_model,
-        )
         if override and has_deep_conn:
             overrides["deep_research_base_url"] = _secret_input(
                 "Base URL",
@@ -253,6 +248,11 @@ def _render_connection_settings(
                 defaults.deep_research_api_key,
                 password=True,
             )
+        overrides["deep_research_model"] = _secret_input(
+            "Model",
+            "dr_model_ov",
+            defaults.deep_research_model,
+        )
 
     if override and use_openalex and has_oa:
         st.sidebar.subheader("OpenAlex")
