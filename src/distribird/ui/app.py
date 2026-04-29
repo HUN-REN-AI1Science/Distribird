@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -73,202 +74,132 @@ def _mask_key(key: str) -> str:
     return key[:4] + "*" * (len(key) - 8) + key[-4:]
 
 
+@dataclass(frozen=True)
+class _ConnField:
+    setting: str
+    label: str
+    session_key: str
+    password: bool = False
+    optional: bool = False
+
+
+@dataclass(frozen=True)
+class _ConnSection:
+    title: str
+    caption: str | None
+    fields: tuple[_ConnField, ...]
+    requires_setting: str | None = None  # name of Settings.enable_* attr that gates this section
+
+
+_CONN_SECTIONS: tuple[_ConnSection, ...] = (
+    _ConnSection(
+        title="LLM Settings",
+        caption="OpenAI-compatible Chat Completions endpoint",
+        fields=(
+            _ConnField("llm_base_url", "Base URL", "llm_url"),
+            _ConnField("llm_api_key", "API Key", "llm_key", password=True),
+            _ConnField("llm_model", "Model", "llm_model"),
+        ),
+    ),
+    _ConnSection(
+        title="Semantic Scholar",
+        caption=None,
+        fields=(_ConnField("semantic_scholar_api_key", "API Key", "s2_key", password=True),),
+        requires_setting="enable_semantic_scholar",
+    ),
+    _ConnSection(
+        title="Deep Research",
+        caption="OpenAI-compatible Chat Completions endpoint",
+        fields=(
+            _ConnField("deep_research_base_url", "Base URL", "dr_url"),
+            _ConnField("deep_research_api_key", "API Key", "dr_key", password=True),
+            _ConnField("deep_research_model", "Model", "dr_model"),
+        ),
+        requires_setting="enable_llm_deep_research",
+    ),
+    _ConnSection(
+        title="OpenAlex",
+        caption=None,
+        fields=(_ConnField("openalex_email", "Email", "oa_email", optional=True),),
+        requires_setting="enable_openalex",
+    ),
+)
+
+
+def _applicable_sections(settings: Settings) -> list[_ConnSection]:
+    return [
+        s
+        for s in _CONN_SECTIONS
+        if s.requires_setting is None or getattr(settings, s.requires_setting)
+    ]
+
+
 def _check_missing_secrets(settings: Settings) -> list[str]:
-    """Return list of missing required secret descriptions."""
-    missing = []
-    if not settings.llm_base_url:
-        missing.append("LLM Base URL")
-    if not settings.llm_api_key:
-        missing.append("LLM API Key")
-    if not settings.llm_model:
-        missing.append("LLM Model")
-    if settings.enable_semantic_scholar and not settings.semantic_scholar_api_key:
-        missing.append("Semantic Scholar API Key")
-    if settings.enable_llm_deep_research:
-        if not settings.deep_research_base_url:
-            missing.append("Deep Research Base URL")
-        if not settings.deep_research_api_key:
-            missing.append("Deep Research API Key")
-        if not settings.deep_research_model:
-            missing.append("Deep Research Model")
-    return missing
+    """Return labels of required-but-empty connection fields."""
+    return [
+        f"{s.title}: {f.label}"
+        for s in _applicable_sections(settings)
+        for f in s.fields
+        if not f.optional and not getattr(settings, f.setting)
+    ]
 
 
-def _secret_input(label: str, key: str, default: str, *, password: bool = False) -> str:
-    """Render a sidebar input that shows pre-filled status or required warning."""
-    has_default = bool(default)
-    if password and has_default:
-        placeholder = f"Configured ({_mask_key(default)})"
-    elif has_default:
-        placeholder = default
-    else:
-        placeholder = f"Required — enter {label}"
-    help_text = None if has_default else "Not configured — you must provide this value"
-    # Set default via session state to avoid the "default value + Session State" warning
-    if key not in st.session_state:
-        st.session_state[key] = default if not password else ""
+def _placeholder_and_help(field: _ConnField, default: str) -> tuple[str, str | None]:
+    if field.password and default:
+        return f"Configured ({_mask_key(default)})", "Leave blank to use configured value"
+    if default:
+        return "", None
+    if field.optional:
+        return f"Optional — enter {field.label}", None
+    return f"Required — enter {field.label}", "Not configured — you must provide this value"
+
+
+def _conn_input(field: _ConnField, default: str) -> str:
+    """Render an always-visible connection input.
+
+    Non-password fields are pre-filled with the config default; password
+    fields show a masked placeholder when a default exists so secrets
+    never appear on screen but the user can still override by typing a
+    new value.
+    """
+    placeholder, help_text = _placeholder_and_help(field, default)
+
+    if field.session_key not in st.session_state:
+        # Don't pre-fill password fields, even if env supplies a default
+        st.session_state[field.session_key] = "" if field.password else default
+
     value = st.sidebar.text_input(
-        label,
+        field.label,
         placeholder=placeholder,
-        type="password" if password else "default",
-        key=key,
+        type="password" if field.password else "default",
+        key=field.session_key,
         help=help_text,
     )
     return value if value else default
 
 
-def _render_required_fields(
-    defaults: Settings,
-    use_s2: bool,
-    use_deep: bool,
-) -> dict[str, str]:
-    """Render inputs for connection fields NOT provided in .env.
-
-    These are always visible because the user must fill them in.
-    Returns a dict of field_name -> value for any fields rendered.
-    """
+def _render_connection_sections(settings: Settings) -> dict[str, str]:
+    """Render every applicable connection section, all fields always editable."""
     overrides: dict[str, str] = {}
-    missing_llm: list[tuple[str, str, str, bool]] = []  # (label, key, field, password)
-
-    if not defaults.llm_base_url:
-        missing_llm.append(("LLM Base URL", "llm_url_req", "llm_base_url", False))
-    if not defaults.llm_api_key:
-        missing_llm.append(("LLM API Key", "llm_key_req", "llm_api_key", True))
-
-    if use_s2 and not defaults.semantic_scholar_api_key:
-        missing_llm.append(
-            (
-                "Semantic Scholar API Key",
-                "s2_key_req",
-                "semantic_scholar_api_key",
-                True,
-            )
-        )
-
-    if use_deep:
-        if not defaults.deep_research_base_url:
-            missing_llm.append(
-                (
-                    "Deep Research Base URL",
-                    "dr_url_req",
-                    "deep_research_base_url",
-                    False,
-                )
-            )
-        if not defaults.deep_research_api_key:
-            missing_llm.append(
-                (
-                    "Deep Research API Key",
-                    "dr_key_req",
-                    "deep_research_api_key",
-                    True,
-                )
-            )
-
-    if missing_llm:
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("Required Settings")
-        for label, key, field, password in missing_llm:
-            value = st.sidebar.text_input(
-                label,
-                value="",
-                key=key,
-                type="password" if password else "default",
-                placeholder=f"Enter {label}",
-            )
-            overrides[field] = value
-
-    return overrides
-
-
-def _render_connection_settings(
-    defaults: Settings,
-    use_s2: bool,
-    use_deep: bool,
-    use_openalex: bool,
-) -> dict[str, str]:
-    """Render connection-settings sections for LLM and Deep Research.
-
-    The LLM Model field is always shown; the Deep Research Model field is
-    shown when ``use_deep`` is on. Both display the .env value as
-    placeholder so the user can override the model name at any time. Base
-    URL / API Key (and S2 / OpenAlex email) remain hidden behind the
-    "Override configured settings" toggle, which is only rendered when
-    there is at least one configured value to override.
-    """
-    has_llm_conn = bool(defaults.llm_base_url and defaults.llm_api_key)
-    has_s2 = bool(defaults.semantic_scholar_api_key)
-    has_deep_conn = bool(defaults.deep_research_base_url and defaults.deep_research_api_key)
-    has_oa = bool(defaults.openalex_email)
-
-    has_any_configured = (
-        has_llm_conn
-        or (use_s2 and has_s2)
-        or (use_deep and has_deep_conn)
-        or (use_openalex and has_oa)
-    )
-
-    st.sidebar.markdown("---")
-    override = False
-    if has_any_configured:
-        override = st.sidebar.toggle("Override configured settings", key="override_toggle")
-
-    overrides: dict[str, str] = {}
-
-    if override and has_llm_conn:
-        st.sidebar.subheader("LLM Settings")
-        st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
-        overrides["llm_base_url"] = _secret_input("Base URL", "llm_url_ov", defaults.llm_base_url)
-        overrides["llm_api_key"] = _secret_input(
-            "API Key",
-            "llm_key_ov",
-            defaults.llm_api_key,
-            password=True,
-        )
-    overrides["llm_model"] = _secret_input("LLM Model", "llm_model_ov", defaults.llm_model)
-
-    if override and use_s2 and has_s2:
-        st.sidebar.subheader("Semantic Scholar")
-        overrides["semantic_scholar_api_key"] = _secret_input(
-            "API Key", "s2_key_ov", defaults.semantic_scholar_api_key, password=True
-        )
-
-    if use_deep:
-        if override and has_deep_conn:
-            st.sidebar.subheader("Deep Research")
-            st.sidebar.caption("OpenAI-compatible Chat Completions endpoint")
-            overrides["deep_research_base_url"] = _secret_input(
-                "Base URL",
-                "dr_url_ov",
-                defaults.deep_research_base_url,
-            )
-            overrides["deep_research_api_key"] = _secret_input(
-                "API Key",
-                "dr_key_ov",
-                defaults.deep_research_api_key,
-                password=True,
-            )
-        overrides["deep_research_model"] = _secret_input(
-            "Deep Research Model",
-            "dr_model_ov",
-            defaults.deep_research_model,
-        )
-
-    if override and use_openalex and has_oa:
-        st.sidebar.subheader("OpenAlex")
-        overrides["openalex_email"] = _secret_input(
-            "Email", "oa_email_ov", defaults.openalex_email
-        )
-
+    sections = _applicable_sections(settings)
+    for i, section in enumerate(sections):
+        if i == 0:
+            st.sidebar.markdown("---")
+        st.sidebar.subheader(section.title)
+        if section.caption:
+            st.sidebar.caption(section.caption)
+        for f in section.fields:
+            overrides[f.setting] = _conn_input(f, getattr(settings, f.setting))
     return overrides
 
 
 def get_settings_from_sidebar() -> Settings:
     """Render sidebar settings.
 
-    Fields provided in .env are used automatically and hidden behind an
-    "Override" toggle.  Fields NOT provided in .env are shown as required
-    inputs the user must fill in before running.
+    All connection fields (Base URL, API Key, Model) are always visible
+    and editable. Defaults from environment / config are pre-filled for
+    non-secret fields, and shown as masked placeholders for secrets so
+    the user can still override without exposing keys on screen.
     """
     defaults = get_settings()
 
@@ -280,7 +211,6 @@ def get_settings_from_sidebar() -> Settings:
         "use_openalex": defaults.enable_openalex,
         "web_search": defaults.llm_web_search,
         "use_deep": defaults.enable_llm_deep_research,
-        "override_toggle": False,
         "max_q": defaults.max_search_queries,
         "max_p": defaults.max_papers_per_query,
     }
@@ -330,32 +260,28 @@ def get_settings_from_sidebar() -> Settings:
             icon="⚠️",
         )
 
-    # --- Required fields (missing from .env) ---
-    required = _render_required_fields(defaults, use_s2, use_deep)
+    working = defaults.model_copy(
+        update={
+            "enable_semantic_scholar": use_s2,
+            "enable_openalex": use_openalex,
+            "enable_llm_deep_research": use_deep,
+            "llm_web_search": web_search,
+        }
+    )
+    overrides = _render_connection_sections(working)
 
-    # --- Connection settings (Models always visible; URL/keys behind override toggle) ---
-    overrides = _render_connection_settings(defaults, use_s2, use_deep, use_openalex)
-
-    # --- Search Settings ---
     st.sidebar.markdown("---")
     st.sidebar.subheader("Search Settings")
     max_queries = st.sidebar.slider("Max search queries", 1, 10, key="max_q")
     max_papers = st.sidebar.slider("Max papers per query", 5, 50, key="max_p")
 
-    # Merge: defaults ← required ← overrides
-    merged = {
-        **defaults.model_dump(),
-        "enable_semantic_scholar": use_s2,
-        "enable_openalex": use_openalex,
-        "enable_llm_deep_research": use_deep,
-        "llm_web_search": web_search,
-        "max_search_queries": max_queries,
-        "max_papers_per_query": max_papers,
-        **required,
-        **overrides,
-    }
-
-    return Settings(**merged)
+    return working.model_copy(
+        update={
+            "max_search_queries": max_queries,
+            "max_papers_per_query": max_papers,
+            **overrides,
+        }
+    )
 
 
 def check_login() -> bool:

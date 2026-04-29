@@ -22,31 +22,20 @@ STORAGE_KEY = "distribird_state"
 # Keys persisted as-is — sidebar (left panel) settings only
 _SIMPLE_KEYS: list[str] = [
     "authenticated",
-    # Sidebar toggles
     "use_s2",
     "use_openalex",
     "use_deep",
     "web_search",
-    "override_toggle",
-    # Search settings
     "max_q",
     "max_p",
-    # Sidebar text inputs (required fields)
-    "llm_url_req",
-    "llm_key_req",
-    "s2_key_req",
-    "dr_url_req",
-    "dr_key_req",
-    # Sidebar text inputs (override fields)
-    "llm_url_ov",
-    "llm_key_ov",
-    "llm_model_ov",
-    "s2_key_ov",
-    "dr_url_ov",
-    "dr_key_ov",
-    "dr_model_ov",
-    "oa_email_ov",
-    # First-visit tracking
+    "llm_url",
+    "llm_key",
+    "llm_model",
+    "s2_key",
+    "dr_url",
+    "dr_key",
+    "dr_model",
+    "oa_email",
     "_docs_shown",
 ]
 
