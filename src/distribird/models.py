@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ConfidenceLevel(str, Enum):
@@ -13,6 +13,15 @@ class ConfidenceLevel(str, Enum):
     MEDIUM = "medium"
     LOW = "low"
     NONE = "none"
+
+
+class ParameterValidity(str, Enum):
+    """Verdict on whether a parameter is a real, empirically-measured scientific quantity."""
+
+    VALID = "valid"
+    SUSPICIOUS = "suspicious"
+    LIKELY_INVALID = "likely_invalid"
+    UNKNOWN = "unknown"
 
 
 class DistributionFamily(str, Enum):
@@ -90,6 +99,36 @@ class FittedPrior(BaseModel):
         return f"{self.family.value}({param_str})"
 
 
+class CredibleIntervalCoverage(BaseModel):
+    """Fraction of extracted data falling within credible intervals of the fitted prior."""
+
+    ci_50: float = Field(..., ge=0.0, le=1.0, description="Fraction within 50% CI")
+    ci_90: float = Field(..., ge=0.0, le=1.0, description="Fraction within 90% CI")
+    ci_95: float = Field(..., ge=0.0, le=1.0, description="Fraction within 95% CI")
+
+
+class ModelCheckResult(BaseModel):
+    """Goodness-of-fit diagnostics for a fitted prior distribution."""
+
+    map_estimate: float = Field(..., description="Mode (MAP) of the fitted distribution")
+    dist_mean: float = Field(..., description="Mean of the fitted distribution")
+    dist_median: float = Field(..., description="Median of the fitted distribution")
+    dist_variance: float = Field(..., description="Variance of the fitted distribution")
+    ci_95_lower: float = Field(..., description="2.5th percentile of the fitted distribution")
+    ci_95_upper: float = Field(..., description="97.5th percentile of the fitted distribution")
+    ks_statistic: float = Field(..., description="Kolmogorov-Smirnov test statistic")
+    ks_pvalue: float = Field(..., description="Kolmogorov-Smirnov test p-value")
+    log_likelihood: float = Field(
+        ..., description="Log-likelihood of data under fitted distribution"
+    )
+    aic: float = Field(..., description="Akaike Information Criterion (2k - 2*ll)")
+    mean_absolute_cdf_deviation: float = Field(
+        ..., description="Mean |F_empirical(x) - F_fitted(x)| over data points"
+    )
+    credible_interval_coverage: CredibleIntervalCoverage
+    n_values: int = Field(..., description="Number of data points used for evaluation")
+
+
 class WeightedValue(BaseModel):
     """A value with associated weight for fitting."""
 
@@ -116,6 +155,25 @@ class EnrichedContext(BaseModel):
         default_factory=list,
         description="Keywords capturing user's specific context for relevance filtering",
     )
+    is_recognized_parameter: bool | None = Field(
+        default=None,
+        description="LLM self-report: did it recognize this as a real scientific parameter?",
+    )
+    recognition_confidence: Literal["high", "medium", "low", "none"] = Field(
+        default="none",
+        description="LLM self-rated confidence in recognizing the parameter",
+    )
+    empirically_measured: bool | None = Field(
+        default=None,
+        description="LLM self-report: is this parameter empirically measured (vs theoretical)?",
+    )
+
+    @field_validator("recognition_confidence", mode="before")
+    @classmethod
+    def _coerce_recognition_confidence(cls, v: object) -> str:
+        if isinstance(v, str) and v in {"high", "medium", "low", "none"}:
+            return v
+        return "none"
 
 
 class AgentFinding(BaseModel):
@@ -149,6 +207,22 @@ class PipelineResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     enrichment: EnrichedContext | None = None
     deliberation: DeliberationResult | None = None
+    model_check: ModelCheckResult | None = None
+    parameter_validity: ParameterValidity = Field(
+        default=ParameterValidity.UNKNOWN,
+        description="Validity verdict for the requested parameter",
+    )
+    validity_reason: str = Field(
+        default="", description="Human-readable explanation of validity verdict"
+    )
+    validity_signals: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Raw signals that fed into the validity verdict",
+    )
+    is_empirical: bool | None = Field(
+        default=None,
+        description="Whether the parameter is empirically measurable (None = not assessed)",
+    )
 
 
 class BatchResult(BaseModel):

@@ -12,6 +12,7 @@ from distribird.config import Settings, get_settings
 from distribird.models import (
     BatchResult,
     ParameterInput,
+    ParameterValidity,
     PipelineResult,
 )
 
@@ -132,6 +133,8 @@ async def run_batch(
                     parameter=param,
                     prior=fallback_prior,
                     warnings=[f"Pipeline error: {e}"],
+                    parameter_validity=ParameterValidity.UNKNOWN,
+                    validity_reason=f"Pipeline error prevented validity check: {e}",
                 )
 
     results = await asyncio.gather(*[_run_one(p) for p in parameters])

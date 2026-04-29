@@ -9,7 +9,7 @@ from distribird.models import BatchResult, PipelineResult
 
 def result_to_dict(result: PipelineResult) -> dict[str, object]:
     """Convert a pipeline result to a JSON-serializable dict."""
-    return {
+    d: dict[str, object] = {
         "parameter": result.parameter.name,
         "distribution": result.prior.family.value,
         "params": result.prior.params,
@@ -28,6 +28,13 @@ def result_to_dict(result: PipelineResult) -> dict[str, object]:
         ],
         "warnings": result.warnings,
     }
+    if result.model_check is not None:
+        d["model_check"] = result.model_check.model_dump()
+    d["parameter_validity"] = result.parameter_validity.value
+    d["validity_reason"] = result.validity_reason
+    d["validity_signals"] = result.validity_signals
+    d["is_empirical"] = result.is_empirical
+    return d
 
 
 def export_json(batch: BatchResult, indent: int = 2) -> str:
