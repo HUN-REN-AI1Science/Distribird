@@ -1,1 +1,4 @@
+# Pinned for Streamlit Cloud rebuild trigger — bump when bumping pyproject.toml version.
+# distribird v0.2.0
+--no-cache-dir
 .
