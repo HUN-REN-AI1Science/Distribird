@@ -9,6 +9,28 @@ def _fmt(val: float, precision: int = 4) -> str:
     return f"{val:.{precision}g}"
 
 
+_LATEX_ESCAPES = {
+    "\\": r"\textbackslash{}",
+    "{": r"\{",
+    "}": r"\}",
+    "&": r"\&",
+    "%": r"\%",
+    "$": r"\$",
+    "#": r"\#",
+    "_": r"\_",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+}
+
+
+def _latex_escape(s: str) -> str:
+    """Escape characters with special meaning in LaTeX."""
+    out: list[str] = []
+    for ch in s:
+        out.append(_LATEX_ESCAPES.get(ch, ch))
+    return "".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Markdown
 # ---------------------------------------------------------------------------
@@ -69,8 +91,8 @@ def batch_to_latex_table(results: list[PipelineResult]) -> str:
 
     for r in results:
         mc = r.model_check
-        name = r.parameter.name.replace("_", r"\_")
-        family = r.prior.family.value.replace("_", r"\_")
+        name = _latex_escape(r.parameter.name)
+        family = _latex_escape(r.prior.family.value)
         if mc is None:
             lines.append(
                 f"{name} & {family} & --- & --- & --- & --- & --- & --- & 0 \\\\"
