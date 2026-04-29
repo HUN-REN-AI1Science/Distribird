@@ -93,11 +93,7 @@ def classify_validity_passive(
             is_empirical,
         )
 
-    if (
-        is_recognized is False
-        and recog_conf in {"none", "low"}
-        and papers_found == 0
-    ):
+    if is_recognized is False and recog_conf in {"none", "low"} and papers_found == 0:
         return ParameterValidity.LIKELY_INVALID, REASON_LLM_UNRECOGNIZED, signals, is_empirical
 
     if n_terms == 0 and papers_found == 0:
@@ -174,9 +170,7 @@ def validity_probe_llm(
         return None
 
     if not isinstance(raw, dict):
-        logger.warning(
-            "[LLM:validity_probe] unexpected response type: %s", type(raw).__name__
-        )
+        logger.warning("[LLM:validity_probe] unexpected response type: %s", type(raw).__name__)
         return None
 
     return raw

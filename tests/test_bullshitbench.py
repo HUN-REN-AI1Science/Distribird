@@ -312,9 +312,7 @@ async def test_real_param_with_search_outage(bullshit_settings):
     param = _mk_param("specific_leaf_area")
 
     # Disable refinement so only 1 query attempted → rule 1 (>=2 queries) doesn't fire
-    no_refine_settings = bullshit_settings.model_copy(
-        update={"search_refinement_max": 0}
-    )
+    no_refine_settings = bullshit_settings.model_copy(update={"search_refinement_max": 0})
 
     probe_response = {
         "verdict": "suspicious",
@@ -485,9 +483,7 @@ async def test_misclassified_empirical_passes_through_probe(bullshit_settings):
         common_terminology=["calibration weight"],
     )
     param = _mk_param("dssat_root_factor_v45")
-    no_refine_settings = bullshit_settings.model_copy(
-        update={"search_refinement_max": 0}
-    )
+    no_refine_settings = bullshit_settings.model_copy(update={"search_refinement_max": 0})
     papers = _mk_papers_no_values(3)
 
     probe_response = {

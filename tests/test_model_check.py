@@ -97,9 +97,7 @@ class TestBuildScipyDist:
         assert abs(dist.mean() - 15.0) < 1e-4
 
     def test_uniform(self):
-        dist = _build_scipy_dist(
-            DistributionFamily.UNIFORM, {"lower": 3.0, "upper": 7.0}
-        )
+        dist = _build_scipy_dist(DistributionFamily.UNIFORM, {"lower": 3.0, "upper": 7.0})
         assert abs(dist.mean() - 5.0) < 1e-6
 
 
@@ -185,9 +183,7 @@ class TestComputeMap:
         assert 0 < result < 1
 
     def test_uniform(self):
-        result = _compute_map(
-            DistributionFamily.UNIFORM, {"lower": 5.0, "upper": 15.0}
-        )
+        result = _compute_map(DistributionFamily.UNIFORM, {"lower": 5.0, "upper": 15.0})
         assert result == 10.0
 
 
@@ -251,9 +247,7 @@ class TestCdfDeviation:
 class TestCheckModel:
     def test_normal_good_fit(self):
         """Data drawn from the same normal → high KS p-value."""
-        prior = _make_prior(
-            DistributionFamily.NORMAL, {"mu": 5.0, "sigma": 2.0}
-        )
+        prior = _make_prior(DistributionFamily.NORMAL, {"mu": 5.0, "sigma": 2.0})
         rng = np.random.default_rng(42)
         values = rng.normal(5.0, 2.0, size=50).tolist()
         mc = check_model(prior, values)
@@ -264,9 +258,7 @@ class TestCheckModel:
 
     def test_single_value(self):
         """Single data point still produces a result."""
-        prior = _make_prior(
-            DistributionFamily.NORMAL, {"mu": 3.0, "sigma": 1.0}
-        )
+        prior = _make_prior(DistributionFamily.NORMAL, {"mu": 3.0, "sigma": 1.0})
         mc = check_model(prior, [3.0])
         assert mc is not None
         assert mc.n_values == 1
@@ -285,9 +277,7 @@ class TestCheckModel:
         assert check_model(prior, [1.0, 2.0, 3.0]) is None
 
     def test_gamma(self):
-        prior = _make_prior(
-            DistributionFamily.GAMMA, {"alpha": 3.0, "scale": 2.0}
-        )
+        prior = _make_prior(DistributionFamily.GAMMA, {"alpha": 3.0, "scale": 2.0})
         rng = np.random.default_rng(42)
         values = stats.gamma.rvs(a=3.0, scale=2.0, size=30, random_state=rng).tolist()
         mc = check_model(prior, values)
@@ -306,9 +296,7 @@ class TestCheckModel:
         assert 0.0 <= mc.credible_interval_coverage.ci_95 <= 1.0
 
     def test_lognormal(self):
-        prior = _make_prior(
-            DistributionFamily.LOGNORMAL, {"mu": 1.0, "sigma": 0.5}
-        )
+        prior = _make_prior(DistributionFamily.LOGNORMAL, {"mu": 1.0, "sigma": 0.5})
         rng = np.random.default_rng(42)
         values = stats.lognorm.rvs(s=0.5, scale=math.exp(1.0), size=40, random_state=rng).tolist()
         mc = check_model(prior, values)
@@ -327,18 +315,14 @@ class TestCheckModel:
         assert mc.ks_pvalue > 0.05
 
     def test_aic_computation(self):
-        prior = _make_prior(
-            DistributionFamily.NORMAL, {"mu": 0.0, "sigma": 1.0}
-        )
+        prior = _make_prior(DistributionFamily.NORMAL, {"mu": 0.0, "sigma": 1.0})
         mc = check_model(prior, [0.0, 0.5, -0.5])
         assert mc is not None
         expected_aic = 2 * 2 - 2 * mc.log_likelihood
         assert mc.aic == pytest.approx(expected_aic)
 
     def test_coverage_monotonic(self):
-        prior = _make_prior(
-            DistributionFamily.NORMAL, {"mu": 0.0, "sigma": 1.0}
-        )
+        prior = _make_prior(DistributionFamily.NORMAL, {"mu": 0.0, "sigma": 1.0})
         rng = np.random.default_rng(42)
         values = rng.normal(0, 1, size=100).tolist()
         mc = check_model(prior, values)

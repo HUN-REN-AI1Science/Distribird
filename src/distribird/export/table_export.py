@@ -38,9 +38,7 @@ def _latex_escape(s: str) -> str:
 
 def batch_to_markdown_table(results: list[PipelineResult]) -> str:
     """Generate a Markdown table of model checking diagnostics."""
-    header = (
-        "| Parameter | Distribution | MAP | Mean | 95% CI | KS stat | KS p | AIC | n |"
-    )
+    header = "| Parameter | Distribution | MAP | Mean | 95% CI | KS stat | KS p | AIC | n |"
     sep = "|---|---|---|---|---|---|---|---|---|"
     rows = [header, sep]
 
@@ -48,8 +46,7 @@ def batch_to_markdown_table(results: list[PipelineResult]) -> str:
         mc = r.model_check
         if mc is None:
             rows.append(
-                f"| {r.parameter.name} | {r.prior.family.value} "
-                f"| — | — | — | — | — | — | 0 |"
+                f"| {r.parameter.name} | {r.prior.family.value} | — | — | — | — | — | — | 0 |"
             )
             continue
         ci = f"[{_fmt(mc.ci_95_lower)}, {_fmt(mc.ci_95_upper)}]"
@@ -94,9 +91,7 @@ def batch_to_latex_table(results: list[PipelineResult]) -> str:
         name = _latex_escape(r.parameter.name)
         family = _latex_escape(r.prior.family.value)
         if mc is None:
-            lines.append(
-                f"{name} & {family} & --- & --- & --- & --- & --- & --- & 0 \\\\"
-            )
+            lines.append(f"{name} & {family} & --- & --- & --- & --- & --- & --- & 0 \\\\")
             continue
         ci = f"[{_fmt(mc.ci_95_lower)}, {_fmt(mc.ci_95_upper)}]"
         lines.append(
@@ -105,10 +100,12 @@ def batch_to_latex_table(results: list[PipelineResult]) -> str:
             f"& {_fmt(mc.aic, 1)} & {mc.n_values} \\\\"
         )
 
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\end{table}",
+        ]
+    )
 
     return "\n".join(lines)

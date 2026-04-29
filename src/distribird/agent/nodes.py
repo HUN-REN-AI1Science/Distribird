@@ -763,10 +763,10 @@ def route_after_enrich(state: PipelineState) -> str:
     if enrichment is None:
         return "query_gen"
 
-    if (
-        enrichment.is_recognized_parameter is False
-        and enrichment.recognition_confidence in {"none", "low"}
-    ):
+    if enrichment.is_recognized_parameter is False and enrichment.recognition_confidence in {
+        "none",
+        "low",
+    }:
         return "validity_check"
 
     return "query_gen"

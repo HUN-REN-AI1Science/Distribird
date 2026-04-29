@@ -171,8 +171,8 @@ class EnrichedContext(BaseModel):
     @field_validator("recognition_confidence", mode="before")
     @classmethod
     def _coerce_recognition_confidence(cls, v: object) -> str:
-        if v in {"high", "medium", "low", "none"}:
-            return v  # type: ignore[return-value]
+        if isinstance(v, str) and v in {"high", "medium", "low", "none"}:
+            return v
         return "none"
 
 

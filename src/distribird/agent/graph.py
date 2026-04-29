@@ -192,9 +192,7 @@ async def run_parameter_graph(
         warnings=final_state.get("warnings", []),
         enrichment=final_state.get("enrichment"),
         deliberation=final_state.get("deliberation"),
-        parameter_validity=final_state.get(
-            "parameter_validity", ParameterValidity.UNKNOWN
-        ),
+        parameter_validity=final_state.get("parameter_validity", ParameterValidity.UNKNOWN),
         validity_reason=final_state.get("validity_reason", ""),
         validity_signals=final_state.get("validity_signals", {}),
         is_empirical=final_state.get("is_empirical"),
