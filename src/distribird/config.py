@@ -26,6 +26,21 @@ class Settings(BaseSettings):
     max_search_queries: int = 5
     extraction_timeout: float = 30.0
 
+    # Full-text fetch fallbacks, in order of cost, tried when a paper's primary
+    # PDF URL fails (e.g. a publisher 403):
+    #   (B) enable_oa_mirror_fallback — pure HTTP: resolve alternate open-access
+    #       copies via Unpaywall (PMC, repositories) and follow citation_pdf_url
+    #       links on landing pages. Cheap and Streamlit-safe; on by default so
+    #       blocked URLs are still resolved as best as possible without a browser.
+    #   (C) enable_stealth_fetch — last resort: a headless stealth browser
+    #       (Camoufox) that solves JS bot walls like MDPI's Akamai bm-verify.
+    #       Heavy (~1.3 GB browser, high RAM), so opt-in; requires the `stealth`
+    #       extra + `python -m camoufox fetch`. Lazily imported, so off is a no-op
+    #       and unsuitable hosts (e.g. Streamlit Cloud) simply skip it.
+    enable_oa_mirror_fallback: bool = True
+    enable_stealth_fetch: bool = False
+    stealth_fetch_timeout: float = 90.0
+
     max_parallel_parameters: int = 3
     enable_context_enrichment: bool = True
     enable_semantic_scholar: bool = True

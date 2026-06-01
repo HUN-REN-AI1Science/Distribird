@@ -62,6 +62,8 @@ START ─► Enrich ─► QueryGen ─► Search ─► RelevanceJudge ──�
 
 **Feedback loops** &mdash; A quality gate inspects extraction results and can trigger search refinement (new queries) or extraction refinement (web-assisted re-extraction) before falling through to synthesis.
 
+**Full-text retrieval:** FetchFulltext downloads each paper's PDF and extracts its text. When a download is blocked (for example a publisher returns 403), it falls back to open-access mirrors via Unpaywall, and optionally to a headless stealth browser for sites behind JavaScript bot walls. See "Full-text PDF fallback" under Install.
+
 **Validity defense** &mdash; Every request is classified as `VALID`, `SUSPICIOUS`, `LIKELY_INVALID`, or `UNKNOWN`. When the enrichment LLM does not recognise the parameter, the pipeline short-circuits past search, extraction, and synthesis straight to the validity node, saving roughly 80&ndash;95% of wall-clock time and LLM tokens on out-of-scope requests. Ambiguous (`SUSPICIOUS`) cases trigger a single second-opinion LLM probe.
 
 **Budget-bounded** &mdash; `IterationBudget` caps every loop to guarantee termination.
@@ -88,6 +90,25 @@ pytest                     # 223 tests, all passing
 ```
 </details>
 
+<details>
+<summary><strong>Optional: full-text PDF fallback (stealth browser)</strong></summary>
+
+Some publishers (MDPI is one) serve PDFs behind a JavaScript bot wall that returns 403 to plain HTTP clients. Distribird can get past these with a headless stealth browser (Camoufox). It is off by default and kept as a separate extra because it downloads a large browser binary.
+
+```bash
+pip install "distribird[stealth]"
+python -m camoufox fetch          # one-time browser download, about 1.3 GB
+```
+
+Then turn it on (see Configure):
+
+```bash
+DISTRIBIRD_ENABLE_STEALTH_FETCH=true
+```
+
+This needs a host that can run a real browser, so it does not work on Streamlit Community Cloud, where it is skipped automatically. The lighter Unpaywall mirror fallback still runs everywhere.
+</details>
+
 ### Configure
 
 Distribird reads configuration from environment variables (prefix `DISTRIBIRD_`) or a `.env` file in the project root.
@@ -98,7 +119,12 @@ DISTRIBIRD_LLM_BASE_URL="http://localhost:4000"   # any OpenAI-compatible endpoi
 DISTRIBIRD_LLM_API_KEY="your-key"
 DISTRIBIRD_LLM_MODEL="gpt-4o"
 DISTRIBIRD_SEMANTIC_SCHOLAR_API_KEY=""            # optional, increases rate limits
+DISTRIBIRD_OPENALEX_EMAIL=""                       # your email; enables the OA mirror fallback
+DISTRIBIRD_ENABLE_OA_MIRROR_FALLBACK="true"        # default; Unpaywall mirrors over plain HTTP
+DISTRIBIRD_ENABLE_STEALTH_FETCH="false"            # opt-in stealth browser (see Install)
 ```
+
+**Full-text PDF fallback.** When a paper's PDF URL is blocked, Distribird tries the direct URL first, then open-access mirrors through Unpaywall, then the stealth browser if it is enabled. The Unpaywall step needs `DISTRIBIRD_OPENALEX_EMAIL` set to a real address and is skipped without one. The stealth step needs the `stealth` extra and a host that can run a browser; it is skipped on Streamlit Community Cloud. With both off, only the direct URL is used.
 
 **Sidebar behaviour in the Streamlit UI:**
 

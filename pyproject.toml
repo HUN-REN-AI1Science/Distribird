@@ -44,6 +44,12 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.7",
 ]
+# Stealth full-text fetch (enable_stealth_fetch): headless stealth browser that
+# solves publisher JS bot walls (e.g. MDPI). After install, fetch the browser
+# binary once: `python -m camoufox fetch`.
+stealth = [
+    "camoufox>=0.4",
+]
 
 [project.urls]
 Repository = "https://github.com/HUN-REN-AI1Science/Distribird"

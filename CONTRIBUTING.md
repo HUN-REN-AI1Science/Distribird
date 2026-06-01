@@ -12,6 +12,13 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
+To work on the PDF full-text stealth fallback, also install the `stealth` extra and fetch its browser:
+
+```bash
+pip install -e ".[dev,stealth]"
+python -m camoufox fetch
+```
+
 ## Running Tests
 
 ```bash
