@@ -129,6 +129,8 @@ DISTRIBIRD_ENABLE_HTML_FULLTEXT="true"             # default; extract text from 
 
 When a URL serves HTML instead of a PDF, Distribird extracts the article text from the HTML (for example PubMed Central full-text pages and many repository pages). A quality check rejects bot-challenge pages and thin abstract-only pages so they do not pollute extraction. This is on by default; set `DISTRIBIRD_ENABLE_HTML_FULLTEXT=false` to turn it off, or raise `DISTRIBIRD_HTML_FULLTEXT_MIN_CHARS` to be stricter about what counts as an article.
 
+The stealth browser follows DOI and handle redirects to the real publisher before clearing the bot challenge, so publishers reached through a `doi.org` link (MDPI and similar) are recovered. Some publishers run enterprise bot protection that a headless browser cannot pass: ScienceDirect and Elsevier (PerimeterX), Wiley and Hindawi (Cloudflare managed challenge), and some institutional repositories that block direct file access. PDFs behind these are expected misses; the paper still contributes its title and abstract.
+
 **Sidebar behaviour in the Streamlit UI:**
 
 - Settings provided in `.env` are used automatically — no manual input needed.

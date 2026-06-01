@@ -289,13 +289,10 @@ async def _attempt_fetch(
             is_html = "html" in content_type
             # HTML landing page — follow its citation_pdf_url to the real PDF (once).
             if _depth == 0 and is_html:
-                m = _CITATION_PDF_URL.search(resp.text)
-                pdf_url = (m.group(1) or m.group(2)) if m else None
-                if pdf_url and pdf_url != url:
+                pdf_url = _citation_pdf_url(resp.text, url)
+                if pdf_url:
                     logger.info("[fulltext] landing page → citation_pdf_url=%s", pdf_url)
-                    return await _attempt_fetch(
-                        client, urljoin(url, pdf_url), settings, _depth + 1
-                    )
+                    return await _attempt_fetch(client, pdf_url, settings, _depth + 1)
             # No PDF available — try the HTML itself (PMC, repositories, DOAJ).
             if is_html and settings.enable_html_fulltext:
                 text, reason, extra = _html_bytes_to_text(
@@ -380,6 +377,16 @@ def _landing_page(pdf_url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
 
+def _citation_pdf_url(html: str, base_url: str) -> str | None:
+    """Return the absolute ``citation_pdf_url`` advertised by an HTML page, if any."""
+    m = _CITATION_PDF_URL.search(html)
+    pdf_url = (m.group(1) or m.group(2)) if m else None
+    if not pdf_url:
+        return None
+    absolute = urljoin(base_url, pdf_url)
+    return absolute if absolute != base_url else None
+
+
 async def _stealth_fetch_batch(
     papers: list[LiteratureEvidence],
     settings: Settings,
@@ -405,65 +412,68 @@ async def _stealth_fetch_batch(
         )
         return
 
-    by_host: dict[str, list[tuple[LiteratureEvidence, str]]] = {}
-    for p in papers:
-        if not p.pdf_url:
-            continue
-        # Group by netloc (host[:port]) so the bot challenge is cleared once per
-        # distinct origin; hostname alone would merge different ports.
-        by_host.setdefault(urlparse(p.pdf_url).netloc, []).append((p, p.pdf_url))
-
+    papers_with_urls = [(p, p.pdf_url) for p in papers if p.pdf_url]
     timeout_ms = int(settings.stealth_fetch_timeout * 1000)
-    logger.info(
-        "[fulltext] stealth fetch: %d paper(s) across %d host(s)",
-        len(papers),
-        len(by_host),
-    )
+    logger.info("[fulltext] stealth fetch: %d paper(s)", len(papers_with_urls))
     try:
         async with AsyncCamoufox(headless=True) as browser:  # type: ignore[no-untyped-call]
             page = await browser.new_page()
-            for host, host_papers in by_host.items():
-                # Clear this host's bot challenge once on an HTML landing page.
-                # The interstitial often never fires "load", so tolerate timeout.
+            cleared: set[str] = set()
+            for paper, url in papers_with_urls:
                 try:
-                    await page.goto(
-                        _landing_page(host_papers[0][1]),
-                        wait_until="domcontentloaded",
-                        timeout=timeout_ms,
-                    )
-                except Exception as e:
-                    logger.info(
-                        "[fulltext] stealth landing goto on %s: %s", host, type(e).__name__
-                    )
-                await page.wait_for_timeout(_STEALTH_CHALLENGE_WAIT_MS)
-
-                for paper, url in host_papers:
+                    # Navigate to the article page first. This follows DOI/handle
+                    # redirects to the real publisher and triggers the bot challenge
+                    # on THAT origin (the resolver, e.g. doi.org, has no challenge of
+                    # its own, so clearing it never helped). The interstitial often
+                    # never fires "load", so tolerate a timeout.
                     try:
-                        resp = await page.context.request.get(url, timeout=timeout_ms)
-                        if not resp.ok:
-                            _trace_pdf(
-                                paper, url, "failed", f"stealth_http_{resp.status}", via="stealth"
-                            )
-                            continue
-                        body = await resp.body()
-                        ctype = resp.headers.get("content-type", "")
-                        text, reason, extra = _bytes_to_text(body, ctype, settings)
-                        if text:
-                            paper.full_text = text
-                            _trace_pdf(paper, url, "downloaded", reason, via="stealth", **extra)
-                            logger.info(
-                                "[fulltext] stealth recovered %r (%d chars)", paper.doi, len(text)
-                            )
-                        else:
-                            _trace_pdf(paper, url, "failed", reason, via="stealth", **extra)
-                    except Exception as e:
-                        _trace_pdf(
-                            paper,
-                            url,
-                            "failed",
-                            f"stealth_exception: {type(e).__name__}: {e}",
-                            via="stealth",
+                        await page.goto(
+                            _landing_page(url), wait_until="domcontentloaded", timeout=timeout_ms
                         )
+                    except Exception as e:
+                        logger.info(
+                            "[fulltext] stealth landing goto for %r: %s",
+                            paper.doi,
+                            type(e).__name__,
+                        )
+                    # Clear the challenge once per RESOLVED publisher host.
+                    host = urlparse(page.url).netloc
+                    if host and host not in cleared:
+                        await page.wait_for_timeout(_STEALTH_CHALLENGE_WAIT_MS)
+                        cleared.add(host)
+                    # Prefer the publisher's own PDF link advertised on the cleared
+                    # page; fall back to the original URL (now reachable with the
+                    # publisher's clearance cookies in the browser session).
+                    try:
+                        pdf_url = _citation_pdf_url(await page.content(), page.url) or url
+                    except Exception:
+                        pdf_url = url
+
+                    resp = await page.context.request.get(pdf_url, timeout=timeout_ms)
+                    if not resp.ok:
+                        _trace_pdf(
+                            paper, pdf_url, "failed", f"stealth_http_{resp.status}", via="stealth"
+                        )
+                        continue
+                    body = await resp.body()
+                    ctype = resp.headers.get("content-type", "")
+                    text, reason, extra = _bytes_to_text(body, ctype, settings)
+                    if text:
+                        paper.full_text = text
+                        _trace_pdf(paper, pdf_url, "downloaded", reason, via="stealth", **extra)
+                        logger.info(
+                            "[fulltext] stealth recovered %r (%d chars)", paper.doi, len(text)
+                        )
+                    else:
+                        _trace_pdf(paper, pdf_url, "failed", reason, via="stealth", **extra)
+                except Exception as e:
+                    _trace_pdf(
+                        paper,
+                        url,
+                        "failed",
+                        f"stealth_exception: {type(e).__name__}: {e}",
+                        via="stealth",
+                    )
     except Exception as e:
         logger.warning("[fulltext] stealth browser failed: %s", e)
 

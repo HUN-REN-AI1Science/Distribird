@@ -42,6 +42,20 @@ def test_landing_page_strips_pdf_segment_and_query():
     )
 
 
+def test_citation_pdf_url_resolves_relative_against_base():
+    """citation_pdf_url is returned as an absolute URL; self-references are dropped."""
+    base = "https://publisher.example/doi/10.1/x"
+    html = '<meta name="citation_pdf_url" content="/doi/pdf/10.1/x">'
+    assert fulltext._citation_pdf_url(html, base) == "https://publisher.example/doi/pdf/10.1/x"
+    # No meta tag -> None.
+    assert fulltext._citation_pdf_url("<html></html>", base) is None
+    # A meta that points back at the same page -> None (avoids a self-loop).
+    assert (
+        fulltext._citation_pdf_url(f'<meta name="citation_pdf_url" content="{base}">', base)
+        is None
+    )
+
+
 async def test_oa_mirror_fallback_gated_by_config():
     """When enable_oa_mirror_fallback is off, Unpaywall is never queried."""
     paper = LiteratureEvidence(title="t", doi="10.1/x", pdf_url="https://walled.example/x.pdf")
