@@ -123,6 +123,12 @@ const EDGES = [
 const $ = s => document.querySelector(s);
 function esc(s){ return String(s==null?"":s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 function fmt(n,d=3){ return (typeof n==="number" && isFinite(n)) ? (Math.round(n*10**d)/10**d) : n; }
+// Format a duration in seconds as "Mm S.Ss" once it crosses 60s, else "S.Ss".
+function fmtSecs(n,d=2){
+  if(typeof n!=="number" || !isFinite(n)) return n;
+  if(n>=60){ const m=Math.floor(n/60); const s=n-m*60; return `${m}m ${fmt(s,d)}s`; }
+  return `${fmt(n,d)}s`;
+}
 function evByKind(tr,k){ return (tr.events||[]).filter(e=>e.kind===k); }
 function pre(obj){ return "<pre>"+esc(typeof obj==="string"?obj:JSON.stringify(obj,null,2))+"</pre>"; }
 function details(summary, inner){ return `<details><summary>${esc(summary)}</summary>${inner}</details>`; }
@@ -158,7 +164,7 @@ function renderGraph(tr){
       shape:"box", margin:8, font:{color:visited?"#d7dde5":"#5b6675", multi:false, size:13},
       color:{ background: visited?"#1f6feb33":"#161b22", border: visited?"#4ea1ff":"#2a313c",
         highlight:{background:"#1f6feb55",border:"#4ea1ff"} },
-      title: visited?`${n}: ${counts[n]} pass(es), ${fmt(durs[n],2)}s`:`${n}: not visited` };
+      title: visited?`${n}: ${counts[n]} pass(es), ${fmtSecs(durs[n])}`:`${n}: not visited` };
   });
   const edges = EDGES.map(([a,b,loop])=>({ from:a,to:b, arrows:"to",
     dashes: !!loop, color:{ color: loop?"#d29922":"#3a424e" }, smooth:{type:"cubicBezier",roundness:0.4} }));
@@ -231,13 +237,13 @@ function renderTab(){
 function renderOverview(tr){
   const s = signals(tr);
   const kinds={}; (tr.events||[]).forEach(e=>kinds[e.kind]=(kinds[e.kind]||0)+1);
-  const dur = (tr.finished_at&&tr.started_at)? fmt(tr.finished_at-tr.started_at,2):"?";
+  const dur = (tr.finished_at&&tr.started_at)? fmtSecs(tr.finished_at-tr.started_at):"?";
   return `<div class="card"><h3>${esc(tr.parameter&&tr.parameter.name||"parameter")}</h3>
     <div class="row">
       <span class="kv"><b>model</b> ${esc(s.model||"?")}</span>
       <span class="kv"><b>temp</b> ${esc(s.temp==null?"default":s.temp)}</span>
       <span class="kv"><b>seed</b> ${esc(s.seed==null?"none":s.seed)}</span>
-      <span class="kv"><b>wall</b> ${dur}s</span>
+      <span class="kv"><b>wall</b> ${dur}</span>
       <span class="kv"><b>events</b> ${(tr.events||[]).length}</span>
     </div>
     <div class="kv" style="margin-top:6px"><b>description</b> ${esc(tr.parameter&&tr.parameter.description||"")}</div>
@@ -259,15 +265,19 @@ function renderOverview(tr){
 function renderTimeline(tr){
   const evs = applyFilters(tr.events||[]);
   if(!evs.length) return "<div class='empty'>No events match the current filter.</div>";
+  // Per-step duration = gap to the previous event in the full timeline (by seq), so filtering doesn't distort it.
+  const stepBySeq={}; let prevTs=0;
+  (tr.events||[]).forEach(e=>{ stepBySeq[e.seq]=(e.rel_ts||0)-prevTs; prevTs=e.rel_ts||0; });
   const rows = evs.map(e=>{
     const open = state.expanded.has(e.seq);
     const main = `<tr class="evrow${open?" open":""}" onclick="toggleRow(${e.seq})">
       <td class="num"><span class="caret">${open?"▼":"▶"}</span>${e.seq}</td>
-      <td class="num">${fmt(e.rel_ts,2)}</td>
+      <td class="num">${fmtSecs(e.rel_ts)}</td>
+      <td class="num">${fmtSecs(stepBySeq[e.seq])}</td>
       <td><span class="nodefilter" onclick="event.stopPropagation();setNode('${esc(e.node)}')">${esc(e.node||"–")}</span></td>
       <td><span class="tag clk" onclick="event.stopPropagation();setKind('${esc(e.kind)}')">${esc(e.kind)}</span></td>
       <td>${esc(eventSummary(e))}</td></tr>`;
-    const detail = open ? `<tr class="detailrow"><td colspan="5">${renderEventDetail(e)}</td></tr>` : "";
+    const detail = open ? `<tr class="detailrow"><td colspan="6">${renderEventDetail(e)}</td></tr>` : "";
     return main + detail;
   }).join("");
   const ctrl = `<div class="card" style="display:flex;gap:12px;align-items:center">
@@ -275,7 +285,7 @@ function renderTimeline(tr){
     <span style="flex:1"></span>
     <span class="nodefilter" onclick="expandAll()">expand all</span>
     <span class="nodefilter" onclick="collapseAll()">collapse all</span></div>`;
-  return ctrl + `<table><thead><tr><th>#</th><th>+s</th><th>node</th><th>kind</th><th>summary</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return ctrl + `<table><thead><tr><th>#</th><th>from start</th><th>step</th><th>node</th><th>kind</th><th>summary</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // ---- per-event detail (rendered inline inside the Timeline) ----
@@ -295,7 +305,7 @@ function renderEventDetail(e){
 function eventSummary(e){
   const d=e.data||{};
   switch(e.kind){
-    case "llm_call": return `${d.label} · ${d.status} · ${d.usage&&d.usage.total_tokens||0} tok · ${fmt(d.latency_s,2)}s`;
+    case "llm_call": return `${d.label} · ${d.status} · ${d.usage&&d.usage.total_tokens||0} tok · ${fmtSecs(d.latency_s)}`;
     case "search_request": return `${d.source} "${d.query}" · ${d.n_after_oa_filter}/${d.n_raw} OA`;
     case "search_ranking": return `${d.n_returned}/${d.n_unique} ranked`;
     case "pdf_fetch": return `${d.outcome}: ${d.reason}`;
@@ -318,7 +328,7 @@ function detailLLM(e){
       <span class="kv"><b>temp</b> ${esc(d.temperature==null?"n/a (reasoning)":d.temperature)}</span>
       <span class="kv"><b>tokens</b> ${d.usage&&d.usage.total_tokens||0} (in ${d.usage&&d.usage.prompt_tokens||0}/out ${d.usage&&d.usage.completion_tokens||0})</span>
       <span class="kv"><b>attempts</b> ${d.n_attempts}</span>
-      <span class="kv"><b>latency</b> ${fmt(d.latency_s,2)}s</span>
+      <span class="kv"><b>latency</b> ${fmtSecs(d.latency_s)}</span>
     </div>
     ${details(`prompt messages (${(d.messages||[]).length})`, msgs)}
     ${details("raw response(s)", resp||"<pre>(none)</pre>")}
