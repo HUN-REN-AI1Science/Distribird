@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     rate_limit_max_retries: int = 3  # max 429 retries
     rate_limit_base_backoff: float = 2.0  # seconds, doubles each retry
 
+    # Debug tracing: when on, run_parameter_graph captures a full structured trace
+    # (LLM prompts/responses, search requests, PDF outcomes, extraction, AIC candidates)
+    # to trace_output_dir and attaches it to PipelineResult.debug_trace. Off by default
+    # and behaviour-neutral.
+    debug_trace: bool = False
+    trace_output_dir: str = "logs/traces"
+
     auth_username: str = "demo"
     auth_password: str = "changeme"
 

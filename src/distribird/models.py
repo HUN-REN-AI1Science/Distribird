@@ -228,6 +228,11 @@ class PipelineResult(BaseModel):
         description="LLM token totals across all calls for this parameter "
         "(keys: prompt_tokens, completion_tokens, total_tokens, n_calls)",
     )
+    debug_trace: dict[str, Any] | None = Field(
+        default=None,
+        description="Full structured execution trace when debug_trace is enabled "
+        "(None otherwise). Schema: see agent/diagnostics.RunTrace.to_dict().",
+    )
 
 
 class BatchResult(BaseModel):

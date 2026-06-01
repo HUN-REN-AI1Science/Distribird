@@ -6,9 +6,11 @@ import contextvars
 import json
 import logging
 import re
+import time
 
 from openai import OpenAI
 
+from distribird.agent import diagnostics
 from distribird.config import Settings
 from distribird.models import (
     ConstraintSpec,
@@ -45,6 +47,18 @@ def reset_token_accumulator() -> dict[str, int]:
     return acc
 
 
+def _usage_dict(response: object) -> dict[str, int]:
+    """Extract a plain token-usage dict from an LLM response (empty if absent)."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return {}
+    return {
+        "prompt_tokens": int(getattr(usage, "prompt_tokens", 0) or 0),
+        "completion_tokens": int(getattr(usage, "completion_tokens", 0) or 0),
+        "total_tokens": int(getattr(usage, "total_tokens", 0) or 0),
+    }
+
+
 def _record_usage(response: object) -> None:
     """Record one LLM response's `usage` block into the current task's accumulator.
 
@@ -53,12 +67,12 @@ def _record_usage(response: object) -> None:
     acc = _token_accumulator.get()
     if acc is None:
         return
-    usage = getattr(response, "usage", None)
-    if usage is None:
+    usage = _usage_dict(response)
+    if not usage:
         return
-    acc["prompt_tokens"] += int(getattr(usage, "prompt_tokens", 0) or 0)
-    acc["completion_tokens"] += int(getattr(usage, "completion_tokens", 0) or 0)
-    acc["total_tokens"] += int(getattr(usage, "total_tokens", 0) or 0)
+    acc["prompt_tokens"] += usage["prompt_tokens"]
+    acc["completion_tokens"] += usage["completion_tokens"]
+    acc["total_tokens"] += usage["total_tokens"]
     acc["n_calls"] += 1
 
 
@@ -155,11 +169,15 @@ def _llm_json_call(
     temperature: float = 0.0,
     max_retries: int = 2,
     extra_body: dict[str, object] | None = None,
+    label: str = "llm",
 ) -> object:
     """Call LLM and parse JSON response, retrying on parse failures.
 
     Returns the parsed JSON object (dict or list).
     Raises json.JSONDecodeError after max_retries exhausted.
+
+    ``label`` is a purpose tag (e.g. "value_extraction", "query_gen") recorded in
+    the debug trace so each LLM call can be attributed to its pipeline stage.
     """
     # Prepend system message to enforce JSON-only output
     full_messages = [_JSON_SYSTEM_MSG] + list(messages)
@@ -168,6 +186,31 @@ def _llm_json_call(
     if reasoning and isinstance(extra_body, dict) and "web_search_options" in extra_body:
         filtered = {k: v for k, v in extra_body.items() if k != "web_search_options"}
         extra_body = filtered or None
+
+    tracing = diagnostics.enabled()
+    started = time.time() if tracing else 0.0
+    attempts: list[dict[str, object]] = []
+
+    def _emit(status: str, parsed: object, usage: dict[str, int]) -> None:
+        if not tracing:
+            return
+        diagnostics.record(
+            "llm_call",
+            {
+                "label": label,
+                "model": model,
+                "reasoning_model": reasoning,
+                "temperature": None if reasoning else temperature,
+                "extra_body": extra_body,
+                "messages": full_messages,
+                "n_attempts": len(attempts),
+                "attempts": attempts,
+                "status": status,
+                "parsed": parsed,
+                "usage": usage,
+                "latency_s": round(time.time() - started, 4),
+            },
+        )
 
     for attempt in range(max_retries + 1):
         create_kwargs: dict[str, object] = {
@@ -179,16 +222,23 @@ def _llm_json_call(
             create_kwargs["temperature"] = temperature
         response = client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
         _record_usage(response)
-        text = response.choices[0].message.content or ""
-        text = _strip_code_fences(text)
+        usage = _usage_dict(response) if tracing else {}
+        raw_text = response.choices[0].message.content or ""
+        text = _strip_code_fences(raw_text)
+        if tracing:
+            attempts.append({"attempt": attempt, "raw_response": raw_text})
         try:
-            return json.loads(text)
+            parsed = json.loads(text)
+            _emit("ok", parsed, usage)
+            return parsed
         except json.JSONDecodeError:
             # Try to repair truncated JSON before retrying
             repaired = _try_repair_json(text)
             if repaired is not None:
                 logger.info("[LLM:json_retry] repaired truncated JSON")
-                return json.loads(repaired)
+                parsed = json.loads(repaired)
+                _emit("repaired", parsed, usage)
+                return parsed
             if attempt < max_retries:
                 logger.info(
                     "[LLM:json_retry] attempt %d/%d failed, retrying",
@@ -206,6 +256,7 @@ def _llm_json_call(
                     },
                 ]
             else:
+                _emit("parse_failed", None, usage)
                 raise
     return None
 
@@ -279,6 +330,7 @@ def extract_values_from_paper(
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.0,
+            label="value_extraction",
         )
     except (json.JSONDecodeError, Exception) as e:
         logger.warning("[LLM:extract] failed paper=%r error=%s", paper.title[:80], e)
@@ -306,6 +358,7 @@ def _parse_extracted_items(
 ) -> list[ExtractedValue]:
     """Parse raw JSON items into ExtractedValue list with bounds and plausibility checking."""
     values = []
+    rejected: list[dict[str, object]] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -322,6 +375,7 @@ def _parse_extracted_items(
                 ev.reported_value,
                 paper_title[:80],
             )
+            rejected.append({"value": ev.reported_value, "reason": "out_of_bounds"})
             continue
         if not _passes_plausibility_check(ev, enrichment):
             logger.info(
@@ -329,8 +383,20 @@ def _parse_extracted_items(
                 ev.reported_value,
                 paper_title[:80],
             )
+            rejected.append({"value": ev.reported_value, "reason": "implausible"})
             continue
         values.append(ev)
+
+    if diagnostics.enabled():
+        diagnostics.record(
+            "extraction",
+            {
+                "paper": paper_title[:200],
+                "n_raw_items": len(raw),
+                "accepted": [v.model_dump() for v in values],
+                "rejected": rejected,
+            },
+        )
     return values
 
 
@@ -381,6 +447,7 @@ def extract_values_batch(
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.0,
+            label="batch_value_extraction",
         )
     except (json.JSONDecodeError, Exception) as e:
         logger.warning("[LLM:batch_extract] batch failed, falling back to per-paper: %s", e)
@@ -473,6 +540,7 @@ def extract_values_web_assisted(
                 [{"role": "user", "content": prompt}],
                 temperature=0.0,
                 extra_body=extra_body,
+                label="web_assisted_extraction",
             )
         except (json.JSONDecodeError, Exception) as e:
             logger.warning("[LLM:web_extract] batch failed: %s", e)
@@ -596,6 +664,7 @@ def extract_consensus_values(
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.0,
+            label="consensus_extraction",
         )
     except (json.JSONDecodeError, Exception) as e:
         logger.warning("[LLM:consensus_extract] failed: %s", e)

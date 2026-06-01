@@ -235,6 +235,7 @@ async def deliberate(
             model,
             [{"role": "user", "content": prompt}],
             temperature=0.1,
+            label="deliberation_moderator",
         )
 
         if not isinstance(result, dict):

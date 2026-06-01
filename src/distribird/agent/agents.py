@@ -100,6 +100,7 @@ class WebSearchAgent:
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.3,
+            label="web_search_agent",
         )
 
         if not isinstance(papers_data, list):

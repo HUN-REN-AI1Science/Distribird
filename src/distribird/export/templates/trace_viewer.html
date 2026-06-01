@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Distribird — Run Debug Trace</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root {
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --border:#2a313c;
+    --fg:#d7dde5; --muted:#8b97a7; --accent:#4ea1ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); height:100vh; overflow:hidden;
+    display:flex; flex-direction:column;
+    font:14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border); }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  header .spacer { flex:1; }
+  select, button, label.filebtn { background:var(--panel2); color:var(--fg);
+    border:1px solid var(--border); border-radius:6px; padding:5px 10px; font-size:13px; cursor:pointer; }
+  button:hover, label.filebtn:hover { border-color:var(--accent); }
+  .pill { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  main { display:grid; grid-template-columns: 440px 1fr; grid-template-rows: minmax(0, 1fr);
+    flex:1; min-height:0; overflow:hidden; }
+  #graphwrap { border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+  #graph { flex:1; min-height:0; }
+  #graphmeta { padding:8px 12px; border-top:1px solid var(--border); background:var(--panel);
+    font-size:12px; color:var(--muted); }
+  #right { display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .tabs { display:flex; gap:2px; padding:8px 12px 0; background:var(--panel);
+    border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .tab { padding:6px 12px; border-radius:6px 6px 0 0; color:var(--muted); cursor:pointer;
+    border:1px solid transparent; border-bottom:none; font-size:13px; }
+  .tab.active { color:var(--fg); background:var(--panel2); border-color:var(--border); }
+  .tab .badge { font-family:var(--mono); font-size:10px; color:var(--accent); margin-left:5px; }
+  #content { padding:14px 16px; overflow:auto; flex:1; min-height:0; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:10px 12px; margin-bottom:10px; }
+  .card h3 { margin:0 0 6px; font-size:13px; }
+  .row { display:flex; gap:14px; flex-wrap:wrap; }
+  .kv { font-size:12px; }
+  .kv b { color:var(--muted); font-weight:500; }
+  .nodefilter { color:var(--accent); cursor:pointer; }
+  tr.evrow { cursor:pointer; }
+  tr.evrow:hover > td { background:var(--panel2); }
+  tr.evrow.open > td { background:var(--panel2); }
+  tr.evrow .caret { color:var(--muted); display:inline-block; width:12px; }
+  tr.detailrow > td { background:#0a0d12; padding:6px 10px 12px; }
+  .clk { cursor:pointer; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; position:sticky; top:0; background:var(--panel); }
+  td.num { font-family:var(--mono); text-align:right; }
+  .tag { display:inline-block; font-family:var(--mono); font-size:10px; padding:1px 6px;
+    border-radius:10px; border:1px solid var(--border); color:var(--muted); }
+  .tag.ok { color:var(--good); border-color:var(--good); }
+  .tag.skip { color:var(--warn); border-color:var(--warn); }
+  .tag.fail { color:var(--bad); border-color:var(--bad); }
+  details { margin:4px 0; }
+  details > summary { cursor:pointer; color:var(--accent); font-size:12px; }
+  pre { background:#0a0d12; border:1px solid var(--border); border-radius:6px; padding:8px;
+    overflow:auto; font-family:var(--mono); font-size:11.5px; white-space:pre-wrap; word-break:break-word;
+    max-height:360px; }
+  .msg-system { border-left:3px solid var(--muted); }
+  .msg-user { border-left:3px solid var(--accent); }
+  .msg-assistant { border-left:3px solid var(--good); }
+  .ev { border-left:3px solid var(--border); padding-left:10px; margin-bottom:10px; }
+  .ev .head { font-size:12px; color:var(--muted); }
+  .ev .head b { color:var(--fg); }
+  .diffcol { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:10px; }
+  .added { color:var(--good); } .removed { color:var(--bad); } .same { color:var(--muted); }
+  .empty { color:var(--muted); font-style:italic; padding:20px; text-align:center; }
+  code { font-family:var(--mono); background:#0a0d12; padding:1px 4px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐦 Distribird Run Trace</h1>
+  <select id="runSelect" title="Active run"></select>
+  <span class="pill" id="runMeta"></span>
+  <span class="spacer"></span>
+  <label class="filebtn">+ Load trace JSON<input id="fileInput" type="file" accept=".json" multiple hidden></label>
+  <button id="diffBtn">Diff mode</button>
+</header>
+<main>
+  <div id="graphwrap">
+    <div id="graph"></div>
+    <div id="graphmeta">Click a node to filter events. Visited nodes are highlighted; numbers show event counts.</div>
+  </div>
+  <div id="right">
+    <div class="tabs" id="tabs"></div>
+    <div id="content"></div>
+  </div>
+</main>
+<script>
+const TRACES = __TRACE_DATA__;
+
+// ---- Pipeline topology (mirrors agent/graph.py) ----
+const NODES = [
+  "enrich","query_gen","search","relevance_judge","cross_enrich",
+  "fetch_fulltext","extract","quality_gate","synthesize","validity_check",
+  "refine_search","refine_extraction"
+];
+const NODE_LABEL = {
+  enrich:"enrich", query_gen:"query_gen", search:"search", relevance_judge:"relevance_judge",
+  cross_enrich:"cross_enrich", fetch_fulltext:"fetch_fulltext", extract:"extract",
+  quality_gate:"quality_gate", synthesize:"synthesize", validity_check:"validity_check",
+  refine_search:"refine_search ↻", refine_extraction:"refine_extraction ↻"
+};
+const EDGES = [
+  ["enrich","query_gen"],["enrich","validity_check"],["query_gen","search"],
+  ["search","relevance_judge"],["relevance_judge","cross_enrich"],["relevance_judge","fetch_fulltext"],
+  ["cross_enrich","fetch_fulltext"],["fetch_fulltext","extract"],["extract","quality_gate"],
+  ["quality_gate","synthesize"],["quality_gate","refine_search",true],["quality_gate","refine_extraction",true],
+  ["refine_search","search",true],["refine_extraction","quality_gate",true],
+  ["synthesize","validity_check"]
+];
+
+// ---- helpers ----
+const $ = s => document.querySelector(s);
+function esc(s){ return String(s==null?"":s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function fmt(n,d=3){ return (typeof n==="number" && isFinite(n)) ? (Math.round(n*10**d)/10**d) : n; }
+function evByKind(tr,k){ return (tr.events||[]).filter(e=>e.kind===k); }
+function pre(obj){ return "<pre>"+esc(typeof obj==="string"?obj:JSON.stringify(obj,null,2))+"</pre>"; }
+function details(summary, inner){ return `<details><summary>${esc(summary)}</summary>${inner}</details>`; }
+
+// per-run derived signals (used by tabs + diff)
+function signals(tr){
+  const searches = evByKind(tr,"search_request");
+  const queries = [...new Set(searches.map(s=>s.data.query).filter(Boolean))];
+  const dois = new Set();
+  searches.forEach(s=>(s.data.results||[]).forEach(r=>{ if(r.kept && r.doi) dois.add(r.doi); }));
+  evByKind(tr,"search_ranking").forEach(s=>(s.data.ranked_dois||[]).forEach(r=>{ if(r.doi) dois.add(r.doi); }));
+  const fitIn = evByKind(tr,"fitting_input").slice(-1)[0];
+  const fitCand = evByKind(tr,"fitting_candidates").slice(-1)[0];
+  const values = fitIn ? (fitIn.data.values||[]) : [];
+  const family = fitCand ? fitCand.data.chosen_family : (fitIn ? fitIn.data.tier : null);
+  return { queries, dois:[...dois], values, family,
+           tier: fitIn?fitIn.data.tier:null,
+           deltaAic: fitCand?fitCand.data.delta_aic_to_second:null,
+           temp: tr.llm_temperature, seed: tr.llm_seed, model: tr.model };
+}
+
+// ---- graph render ----
+let network=null;
+function renderGraph(tr){
+  const counts={}, durs={};
+  (tr.node_events||[]).forEach(ne=>{ counts[ne.node]=(counts[ne.node]||0)+1; durs[ne.node]=(durs[ne.node]||0)+(ne.duration_s||0); });
+  const evCounts={};
+  (tr.events||[]).forEach(e=>{ if(e.node) evCounts[e.node]=(evCounts[e.node]||0)+1; });
+  const nodes = NODES.map(n=>{
+    const visited = counts[n]>0;
+    const c = evCounts[n]||0;
+    return { id:n, label: NODE_LABEL[n] + (c?`\n(${c} ev)`:""),
+      shape:"box", margin:8, font:{color:visited?"#d7dde5":"#5b6675", multi:false, size:13},
+      color:{ background: visited?"#1f6feb33":"#161b22", border: visited?"#4ea1ff":"#2a313c",
+        highlight:{background:"#1f6feb55",border:"#4ea1ff"} },
+      title: visited?`${n}: ${counts[n]} pass(es), ${fmt(durs[n],2)}s`:`${n}: not visited` };
+  });
+  const edges = EDGES.map(([a,b,loop])=>({ from:a,to:b, arrows:"to",
+    dashes: !!loop, color:{ color: loop?"#d29922":"#3a424e" }, smooth:{type:"cubicBezier",roundness:0.4} }));
+  const data={ nodes:new vis.DataSet(nodes), edges:new vis.DataSet(edges) };
+  const opts={ layout:{ hierarchical:{ enabled:true, direction:"UD", sortMethod:"directed",
+      levelSeparation:70, nodeSpacing:120 } }, physics:false, interaction:{ hover:true } };
+  if(network){ network.setData(data); network.setOptions(opts); }
+  else {
+    if(typeof vis==="undefined"){ $("#graph").innerHTML="<div class='empty'>Graph library unavailable (offline). Event tabs still work.</div>"; return; }
+    network=new vis.Network($("#graph"), data, opts);
+    network.on("click", p=>{
+      if(p.nodes&&p.nodes.length){ state.nodeFilter=p.nodes[0]; state.tab="timeline"; }
+      else { state.nodeFilter=null; }
+      buildTabs(); renderTab();
+    });
+  }
+}
+
+// ---- tabs ----
+const TABS = [
+  ["overview","Overview", tr=>true],
+  ["timeline","Timeline", tr=>true],
+  ["determinism","Determinism", tr=>true],
+  ["diff","Diff", tr=>TRACES.length>1],
+];
+const state = { run:0, tab:"overview", nodeFilter:null, kindFilter:null, expanded:new Set(), diffA:0, diffB:1 };
+
+function buildTabs(){
+  const tr=TRACES[state.run];
+  $("#tabs").innerHTML = TABS.filter(t=>t[2](tr)).map(([id,label,cnt])=>{
+    const c = typeof cnt==="function"? cnt(tr):0;
+    const badge = (typeof c==="number"&&c>0&&id!=="overview"&&id!=="timeline"&&id!=="determinism"&&id!=="diff")?`<span class="badge">${c}</span>`:"";
+    return `<div class="tab ${state.tab===id?"active":""}" data-tab="${id}">${label}${badge}</div>`;
+  }).join("");
+  $("#tabs").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{ state.tab=t.dataset.tab; buildTabs(); renderTab(); });
+}
+
+function filterNote(){
+  const parts=[];
+  if(state.nodeFilter) parts.push(`node <code>${esc(state.nodeFilter)}</code> <span class="nodefilter" onclick="state.nodeFilter=null;renderTab()">✕</span>`);
+  if(state.kindFilter) parts.push(`kind <code>${esc(state.kindFilter)}</code> <span class="nodefilter" onclick="state.kindFilter=null;renderTab()">✕</span>`);
+  if(!parts.length) return "";
+  return `<div class="card"><b>Filtering by:</b> ${parts.join(" · ")}</div>`;
+}
+function applyFilters(evs){
+  let out = evs;
+  if(state.nodeFilter) out = out.filter(e=>e.node===state.nodeFilter);
+  if(state.kindFilter) out = out.filter(e=>e.kind===state.kindFilter);
+  return out;
+}
+
+// row interactions (Timeline)
+function toggleRow(seq){ if(state.expanded.has(seq)) state.expanded.delete(seq); else state.expanded.add(seq); renderTab(); }
+function expandAll(){ const evs=applyFilters(TRACES[state.run].events||[]); state.expanded=new Set(evs.map(e=>e.seq)); renderTab(); }
+function collapseAll(){ state.expanded=new Set(); renderTab(); }
+function setKind(k){ state.kindFilter=k; renderTab(); }
+function setNode(n){ state.nodeFilter=n; renderTab(); }
+
+function renderTab(){
+  const tr = TRACES[state.run];
+  const c = $("#content");
+  if(state.tab==="diff"){ c.innerHTML=renderDiff(); wireDiff(); return; }
+  let html = filterNote();
+  if(state.tab==="overview") html += renderOverview(tr);
+  else if(state.tab==="timeline") html += renderTimeline(tr);
+  else if(state.tab==="determinism") html += renderDeterminism(tr);
+  c.innerHTML = html || "<div class='empty'>No events.</div>";
+}
+
+function renderOverview(tr){
+  const s = signals(tr);
+  const kinds={}; (tr.events||[]).forEach(e=>kinds[e.kind]=(kinds[e.kind]||0)+1);
+  const dur = (tr.finished_at&&tr.started_at)? fmt(tr.finished_at-tr.started_at,2):"?";
+  return `<div class="card"><h3>${esc(tr.parameter&&tr.parameter.name||"parameter")}</h3>
+    <div class="row">
+      <span class="kv"><b>model</b> ${esc(s.model||"?")}</span>
+      <span class="kv"><b>temp</b> ${esc(s.temp==null?"default":s.temp)}</span>
+      <span class="kv"><b>seed</b> ${esc(s.seed==null?"none":s.seed)}</span>
+      <span class="kv"><b>wall</b> ${dur}s</span>
+      <span class="kv"><b>events</b> ${(tr.events||[]).length}</span>
+    </div>
+    <div class="kv" style="margin-top:6px"><b>description</b> ${esc(tr.parameter&&tr.parameter.description||"")}</div>
+  </div>
+  <div class="card"><h3>Result</h3>
+    <div class="row">
+      <span class="kv"><b>queries</b> ${s.queries.length}</span>
+      <span class="kv"><b>papers (DOIs)</b> ${s.dois.length}</span>
+      <span class="kv"><b>value pool</b> ${s.values.length}</span>
+      <span class="kv"><b>tier</b> ${esc(s.tier||"?")}</span>
+      <span class="kv"><b>fitted family</b> <code>${esc(s.family||"?")}</code></span>
+      <span class="kv"><b>ΔAIC→2nd</b> ${s.deltaAic==null?"–":fmt(s.deltaAic,2)}</span>
+    </div></div>
+  <div class="card"><h3>Event counts <span class="kv" style="color:var(--muted);font-weight:400">(click to open in Timeline)</span></h3><div class="row">
+    ${Object.entries(kinds).map(([k,v])=>`<span class="tag clk" onclick="state.tab='timeline';state.kindFilter='${esc(k)}';buildTabs();renderTab()">${esc(k)}: ${v}</span>`).join("")}
+  </div></div>`;
+}
+
+function renderTimeline(tr){
+  const evs = applyFilters(tr.events||[]);
+  if(!evs.length) return "<div class='empty'>No events match the current filter.</div>";
+  const rows = evs.map(e=>{
+    const open = state.expanded.has(e.seq);
+    const main = `<tr class="evrow${open?" open":""}" onclick="toggleRow(${e.seq})">
+      <td class="num"><span class="caret">${open?"▼":"▶"}</span>${e.seq}</td>
+      <td class="num">${fmt(e.rel_ts,2)}</td>
+      <td><span class="nodefilter" onclick="event.stopPropagation();setNode('${esc(e.node)}')">${esc(e.node||"–")}</span></td>
+      <td><span class="tag clk" onclick="event.stopPropagation();setKind('${esc(e.kind)}')">${esc(e.kind)}</span></td>
+      <td>${esc(eventSummary(e))}</td></tr>`;
+    const detail = open ? `<tr class="detailrow"><td colspan="5">${renderEventDetail(e)}</td></tr>` : "";
+    return main + detail;
+  }).join("");
+  const ctrl = `<div class="card" style="display:flex;gap:12px;align-items:center">
+    <span class="kv" style="color:var(--muted)">Click any row to expand its full detail · click a <b>node</b> or <b>kind</b> to filter.</span>
+    <span style="flex:1"></span>
+    <span class="nodefilter" onclick="expandAll()">expand all</span>
+    <span class="nodefilter" onclick="collapseAll()">collapse all</span></div>`;
+  return ctrl + `<table><thead><tr><th>#</th><th>+s</th><th>node</th><th>kind</th><th>summary</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ---- per-event detail (rendered inline inside the Timeline) ----
+function renderEventDetail(e){
+  switch(e.kind){
+    case "llm_call": return detailLLM(e);
+    case "search_request": return detailSearch(e);
+    case "search_ranking": return detailRanking(e);
+    case "pdf_fetch": return detailPDF(e);
+    case "extraction": return detailExtract(e);
+    case "fitting_input": return detailFitInput(e);
+    case "fitting_candidates": return detailFitCand(e);
+    case "routing": return detailRouting(e);
+    default: return pre(e.data);
+  }
+}
+function eventSummary(e){
+  const d=e.data||{};
+  switch(e.kind){
+    case "llm_call": return `${d.label} · ${d.status} · ${d.usage&&d.usage.total_tokens||0} tok · ${fmt(d.latency_s,2)}s`;
+    case "search_request": return `${d.source} "${d.query}" · ${d.n_after_oa_filter}/${d.n_raw} OA`;
+    case "search_ranking": return `${d.n_returned}/${d.n_unique} ranked`;
+    case "pdf_fetch": return `${d.outcome}: ${d.reason}`;
+    case "extraction": return `${(d.accepted||[]).length} kept, ${(d.rejected||[]).length} rejected`;
+    case "fitting_input": return `tier=${d.tier}, n=${d.n_values}`;
+    case "fitting_candidates": return `chose ${d.chosen_family}, ΔAIC=${fmt(d.delta_aic_to_second,2)}`;
+    case "routing": return `${d.gate} → ${d.decision}`;
+    default: return JSON.stringify(d).slice(0,80);
+  }
+}
+
+function detailLLM(e){
+  const d=e.data;
+  const msgs=(d.messages||[]).map(m=>`<div class="ev msg-${esc(m.role)}"><div class="head"><b>${esc(m.role)}</b></div>${pre(m.content)}</div>`).join("");
+  const resp = (d.attempts||[]).map(a=>pre(a.raw_response)).join("");
+  return `<div class="card"><h3>${esc(d.label)} <span class="tag ${d.status==='ok'?'ok':(d.status==='parse_failed'?'fail':'')}">${esc(d.status)}</span></h3>
+    <div class="row">
+      <span class="kv"><b>node</b> ${esc(e.node)}</span>
+      <span class="kv"><b>model</b> ${esc(d.model)}</span>
+      <span class="kv"><b>temp</b> ${esc(d.temperature==null?"n/a (reasoning)":d.temperature)}</span>
+      <span class="kv"><b>tokens</b> ${d.usage&&d.usage.total_tokens||0} (in ${d.usage&&d.usage.prompt_tokens||0}/out ${d.usage&&d.usage.completion_tokens||0})</span>
+      <span class="kv"><b>attempts</b> ${d.n_attempts}</span>
+      <span class="kv"><b>latency</b> ${fmt(d.latency_s,2)}s</span>
+    </div>
+    ${details(`prompt messages (${(d.messages||[]).length})`, msgs)}
+    ${details("raw response(s)", resp||"<pre>(none)</pre>")}
+    ${details("parsed JSON", pre(d.parsed))}
+    ${d.extra_body?details("extra_body", pre(d.extra_body)):""}
+  </div>`;
+}
+
+function detailSearch(e){
+  const d=e.data;
+  const rows=(d.results||[]).map(r=>`<tr><td>${r.kept?'<span class="tag ok">kept</span>':'<span class="tag skip">drop</span>'}</td>
+    <td>${esc(r.doi||"–")}</td><td>${esc((r.title||"").slice(0,70))}</td><td class="num">${r.year||"–"}</td>
+    <td class="num">${fmt(r.relevance_score,3)}</td><td>${r.has_oa_pdf?"✓":"✗"}</td></tr>`).join("");
+  return `<div class="card"><h3>${esc(d.source)} · "${esc(d.query)}"</h3>
+    <div class="row"><span class="kv"><b>raw</b> ${d.n_raw}</span>
+      <span class="kv"><b>after OA filter</b> ${d.n_after_oa_filter}</span>
+      <span class="kv"><b>limit</b> ${d.limit}</span>
+      <span class="kv"><b>url</b> <code>${esc(d.url)}</code></span></div>
+    ${details(`results (${(d.results||[]).length})`,
+      `<table><thead><tr><th></th><th>DOI</th><th>title</th><th>year</th><th>rel</th><th>OA</th></tr></thead><tbody>${rows}</tbody></table>`)}
+  </div>`;
+}
+
+function detailRanking(e){
+  const d=e.data;
+  return `<div class="card"><h3>Ranking / dedup</h3>
+    <div class="row"><span class="kv"><b>unique</b> ${d.n_unique}</span><span class="kv"><b>returned</b> ${d.n_returned}</span></div>
+    ${details("ranked DOIs", `<table><thead><tr><th>#</th><th>DOI</th><th>rel</th><th>year</th></tr></thead><tbody>${
+      (d.ranked_dois||[]).map((r,i)=>`<tr><td class="num">${i+1}</td><td>${esc(r.doi||"–")}</td><td class="num">${fmt(r.relevance_score,3)}</td><td class="num">${r.year||"–"}</td></tr>`).join("")
+    }</tbody></table>`)}</div>`;
+}
+
+function detailPDF(e){
+  const d=e.data;
+  const cls = d.outcome==="downloaded"?"ok":(d.outcome==="skipped"?"skip":"fail");
+  return `<div class="card"><h3>PDF <span class="tag ${cls}">${esc(d.outcome)}</span> — ${esc(d.reason)}</h3>
+    <div class="row"><span class="kv"><b>DOI</b> ${esc(d.doi||"–")}</span>
+      <span class="kv"><b>chars kept</b> ${d.n_chars_kept!=null?d.n_chars_kept:"–"}</span>
+      ${d.n_bytes!=null?`<span class="kv"><b>bytes</b> ${d.n_bytes}</span>`:""}
+      ${d.content_type?`<span class="kv"><b>content-type</b> ${esc(d.content_type)}</span>`:""}</div>
+    <div class="kv" style="margin-top:4px"><b>title</b> ${esc(d.title||"")}</div>
+    ${details("url", pre(d.url))}</div>`;
+}
+
+function detailExtract(e){
+  const d=e.data;
+  const acc=(d.accepted||[]).map(v=>`<tr><td class="num">${fmt(v.reported_value)}</td><td>${esc(v.reported_range?JSON.stringify(v.reported_range):"–")}</td><td>${esc((v.context||"").slice(0,80))}</td></tr>`).join("");
+  const rej=(d.rejected||[]).map(r=>`<tr><td class="num">${fmt(r.value)}</td><td><span class="tag fail">${esc(r.reason)}</span></td></tr>`).join("");
+  return `<div class="card"><h3>${esc((d.paper||"").slice(0,80))}</h3>
+    <div class="row"><span class="kv"><b>raw items</b> ${d.n_raw_items}</span>
+      <span class="kv"><b>accepted</b> ${(d.accepted||[]).length}</span>
+      <span class="kv"><b>rejected</b> ${(d.rejected||[]).length}</span></div>
+    ${acc?details("accepted values",`<table><thead><tr><th>value</th><th>range</th><th>context</th></tr></thead><tbody>${acc}</tbody></table>`):""}
+    ${rej?details("rejected values",`<table><thead><tr><th>value</th><th>reason</th></tr></thead><tbody>${rej}</tbody></table>`):""}
+  </div>`;
+}
+
+function detailFitInput(e){
+  const d=e.data;
+  return `<div class="card"><h3>Fitting input — tier <code>${esc(d.tier)}</code> (n=${d.n_values})</h3>
+    ${details("value pool", pre(d.values))}
+    ${d.weights?details("weights", pre(d.weights)):""}
+    <div class="kv"><b>bounds</b> [${esc(d.lower_bound)}, ${esc(d.upper_bound)}]</div></div>`;
+}
+
+function detailFitCand(e){
+  const d=e.data;
+  const cands=d.candidates||[];
+  const max = Math.max(...cands.map(c=>c.aic), 1), min=Math.min(...cands.map(c=>c.aic),0);
+  const bars = cands.map(c=>{
+    const w = max>min? Math.round(100*(c.aic-min)/(max-min)):0;
+    const chosen = c.family===d.chosen_family;
+    return `<div style="margin:3px 0"><span style="display:inline-block;width:130px">${chosen?"★ ":""}<code>${esc(c.family)}</code></span>
+      <span style="display:inline-block;height:12px;width:${Math.max(2,w*1.6)}px;background:${chosen?'#4ea1ff':'#3a424e'};border-radius:3px;vertical-align:middle"></span>
+      <span class="num"> AIC ${fmt(c.aic,2)}</span></div>`;
+  }).join("");
+  return `<div class="card"><h3>AIC candidates — chose <code>${esc(d.chosen_family)}</code>
+    ${d.delta_aic_to_second!=null?`<span class="tag">ΔAIC→2nd = ${fmt(d.delta_aic_to_second,2)}</span>`:""}</h3>
+    ${bars||"<div class='empty'>no candidates</div>"}</div>`;
+}
+
+function detailRouting(e){
+  const d=e.data;
+  return `<div class="card"><h3>Routing — ${esc(d.gate)} → <code>${esc(d.decision)}</code></h3>
+    ${d.reason?`<div class="kv"><b>reason</b> ${esc(d.reason)}</div>`:""}
+    ${d.n_papers!=null?`<div class="kv"><b>papers</b> ${d.n_papers}${d.n_high_relevance!=null?` (high-rel ${d.n_high_relevance})`:""}</div>`:""}
+    ${d.quality?details("quality metrics", pre(d.quality)):""}
+    ${d.budget?details("budget", pre(d.budget)):""}</div>`;
+}
+
+function renderDeterminism(tr){
+  const s=signals(tr);
+  return `<div class="card"><h3>Determinism-relevant signals</h3>
+    <div class="row">
+      <span class="kv"><b>model</b> ${esc(s.model)}</span>
+      <span class="kv"><b>temperature</b> ${esc(s.temp==null?"LLM default (≠0 ⇒ stochastic)":s.temp)}</span>
+      <span class="kv"><b>seed</b> ${esc(s.seed==null?"none (⇒ stochastic)":s.seed)}</span>
+    </div>
+    <p class="kv" style="color:var(--muted)">These are the inputs that most affect run-to-run variance.
+    Load a second run and open the <b>Diff</b> tab to compare query/DOI/value sets and the fitted family.</p>
+  </div>
+  <div class="card"><h3>Query set (${s.queries.length})</h3>${pre(s.queries)}</div>
+  <div class="card"><h3>Cited DOIs (${s.dois.length})</h3>${pre(s.dois)}</div>
+  <div class="card"><h3>Value pool (${s.values.length}) → ${esc(s.family||"?")}</h3>${pre(s.values)}</div>`;
+}
+
+// ---- diff ----
+function jaccard(a,b){ const A=new Set(a),B=new Set(b); if(!A.size&&!B.size) return 1;
+  let inter=0; A.forEach(x=>{if(B.has(x))inter++;}); return inter/(A.size+B.size-inter || 1); }
+function setDiff(a,b){ const A=new Set(a),B=new Set(b);
+  return { onlyA:[...A].filter(x=>!B.has(x)), onlyB:[...B].filter(x=>!A.has(x)), both:[...A].filter(x=>B.has(x)) }; }
+
+function renderDiff(){
+  if(TRACES.length<2) return "<div class='empty'>Load at least two trace files to compare.</div>";
+  const opts = TRACES.map((t,i)=>`<option value="${i}">${esc(t.run_id||("run "+i))}</option>`).join("");
+  const A=TRACES[state.diffA], B=TRACES[state.diffB];
+  const sa=signals(A), sb=signals(B);
+  const q=setDiff(sa.queries,sb.queries), d=setDiff(sa.dois,sb.dois);
+  const va=[...sa.values].sort((x,y)=>x-y), vb=[...sb.values].sort((x,y)=>x-y);
+  function col(s,extra){ return `<div class="diffcol"><b>${esc(extra)}</b><br>
+    model ${esc(s.model)} · temp ${esc(s.temp==null?"def":s.temp)} · seed ${esc(s.seed==null?"none":s.seed)}<br>
+    queries ${s.queries.length} · DOIs ${s.dois.length} · values ${s.values.length}<br>
+    family <code>${esc(s.family||"?")}</code> · tier ${esc(s.tier||"?")}</div>`; }
+  function lst(title, diff, jac){
+    return `<div class="card"><h3>${esc(title)} — Jaccard ${fmt(jac,3)}</h3>
+      <div class="row">
+        <div style="flex:1"><b class="same">both (${diff.both.length})</b>${pre(diff.both)}</div>
+        <div style="flex:1"><b class="removed">only A (${diff.onlyA.length})</b>${pre(diff.onlyA)}</div>
+        <div style="flex:1"><b class="added">only B (${diff.onlyB.length})</b>${pre(diff.onlyB)}</div>
+      </div></div>`;
+  }
+  return `<div class="card"><div class="row">
+      <label>A <select id="diffA">${opts}</select></label>
+      <label>B <select id="diffB">${opts}</select></label>
+    </div>
+    <div class="row" style="margin-top:8px">${col(sa,"A: "+(A.run_id||""))}${col(sb,"B: "+(B.run_id||""))}</div>
+    <p class="kv" style="color:var(--muted)">Fitted family ${sa.family===sb.family?'<span class="same">identical</span>':'<span class="removed">DIFFERS — '+esc(sa.family)+' vs '+esc(sb.family)+'</span>'}.</p>
+  </div>
+  ${lst("Search queries", q, jaccard(sa.queries,sb.queries))}
+  ${lst("Cited DOIs", d, jaccard(sa.dois,sb.dois))}
+  <div class="card"><h3>Value pools</h3><div class="row">
+    <div style="flex:1"><b>A (${va.length})</b>${pre(va)}</div>
+    <div style="flex:1"><b>B (${vb.length})</b>${pre(vb)}</div></div></div>`;
+}
+function wireDiff(){
+  const a=$("#diffA"), b=$("#diffB");
+  if(a){ a.value=state.diffA; a.onchange=()=>{state.diffA=+a.value; renderTab();}; }
+  if(b){ b.value=state.diffB; b.onchange=()=>{state.diffB=+b.value; renderTab();}; }
+}
+
+// ---- run selector + file loading ----
+function refreshRunSelect(){
+  $("#runSelect").innerHTML = TRACES.map((t,i)=>`<option value="${i}">${esc(t.run_id||("run "+i))}</option>`).join("");
+  $("#runSelect").value = state.run;
+  const tr=TRACES[state.run];
+  $("#runMeta").textContent = `${(tr.events||[]).length} events · ${tr.node_events?tr.node_events.length:0} node passes`;
+}
+function resetView(){ state.nodeFilter=null; state.kindFilter=null; state.expanded=new Set(); }
+$("#runSelect").onchange = e=>{ state.run=+e.target.value; resetView(); renderGraph(TRACES[state.run]); refreshRunSelect(); buildTabs(); renderTab(); };
+$("#diffBtn").onclick = ()=>{ state.tab="diff"; buildTabs(); renderTab(); };
+$("#fileInput").onchange = ev=>{
+  const files=[...ev.target.files];
+  let pending=files.length;
+  files.forEach(f=>{ const r=new FileReader(); r.onload=()=>{ try{ TRACES.push(JSON.parse(r.result)); }catch(e){ alert("Bad JSON: "+f.name); }
+    if(--pending===0){ refreshRunSelect(); buildTabs(); renderTab(); } }; r.readAsText(f); });
+};
+
+// ---- boot ----
+if(!TRACES.length){ document.body.innerHTML="<div class='empty' style='margin-top:80px'>No trace data embedded. Load a trace JSON file.</div>"; }
+else { renderGraph(TRACES[0]); refreshRunSelect(); buildTabs(); renderTab(); }
+</script>
+</body>
+</html>

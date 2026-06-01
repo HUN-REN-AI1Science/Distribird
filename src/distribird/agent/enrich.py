@@ -38,6 +38,7 @@ def research_model(domain_context: str, settings: Settings) -> str:
         [{"role": "user", "content": prompt}],
         temperature=0.3,
         extra_body=extra_body,
+        label="model_research",
     )
 
     if isinstance(raw, dict):
@@ -86,6 +87,7 @@ def enrich_parameter(
         settings.llm_model,
         [{"role": "user", "content": prompt}],
         temperature=0.3,
+        label="parameter_enrichment",
     )
 
     if isinstance(raw, dict):

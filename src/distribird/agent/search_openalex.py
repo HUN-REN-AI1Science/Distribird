@@ -6,6 +6,7 @@ import logging
 
 import httpx
 
+from distribird.agent import diagnostics
 from distribird.agent.ratelimit import get_limiter, rate_limited_request
 from distribird.agent.search import _compute_relevance
 from distribird.config import Settings
@@ -114,6 +115,30 @@ async def search_openalex(
             )
         )
 
+    if diagnostics.enabled():
+        diagnostics.record(
+            "search_request",
+            {
+                "source": "openalex",
+                "query": query,
+                "url": OPENALEX_BASE,
+                "params": {k: v for k, v in params.items() if k != "mailto"},
+                "n_raw": len(results),
+                "n_after_oa_filter": len(papers),
+                "limit": limit,
+                "results": [
+                    {
+                        "doi": p.doi,
+                        "title": p.title[:200],
+                        "year": p.year,
+                        "relevance_score": p.relevance_score,
+                        "has_oa_pdf": p.pdf_url is not None,
+                        "kept": True,
+                    }
+                    for p in papers
+                ],
+            },
+        )
     return papers
 
 

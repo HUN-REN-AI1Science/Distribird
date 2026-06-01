@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import stats  # type: ignore[import-untyped]
 
+from distribird.agent import diagnostics
 from distribird.models import ConfidenceLevel, DistributionFamily, FittedPrior
 
 
@@ -199,9 +200,29 @@ def fit_distribution(
             candidates.append(result)
 
     if not candidates:
+        if diagnostics.enabled():
+            diagnostics.record("fitting_candidates", {"n_values": len(arr), "candidates": []})
         return None
 
-    return min(candidates, key=lambda c: c.aic)
+    best = min(candidates, key=lambda c: c.aic)
+
+    if diagnostics.enabled():
+        ranked = sorted(candidates, key=lambda c: c.aic)
+        delta = (ranked[1].aic - ranked[0].aic) if len(ranked) > 1 else None
+        diagnostics.record(
+            "fitting_candidates",
+            {
+                "n_values": len(arr),
+                "candidates": [
+                    {"family": c.family.value, "aic": c.aic, "log_likelihood": c.log_likelihood}
+                    for c in ranked
+                ],
+                "chosen_family": best.family.value,
+                "delta_aic_to_second": delta,
+            },
+        )
+
+    return best
 
 
 def moment_match_normal(
@@ -271,6 +292,27 @@ def values_to_prior(
     from distribird.distributions.uninformative import wide_normal_prior
 
     n = len(values)
+
+    if diagnostics.enabled():
+        if n == 0:
+            tier = "uninformative"
+        elif n == 1:
+            tier = "single_value_wide_normal"
+        elif n <= 4:
+            tier = "moment_match"
+        else:
+            tier = "aic_selection"
+        diagnostics.record(
+            "fitting_input",
+            {
+                "n_values": n,
+                "tier": tier,
+                "values": list(values),
+                "weights": list(weights) if weights is not None else None,
+                "lower_bound": lower_bound,
+                "upper_bound": upper_bound,
+            },
+        )
 
     if n == 0:
         return wide_normal_prior(parameter_name, lower_bound, upper_bound)

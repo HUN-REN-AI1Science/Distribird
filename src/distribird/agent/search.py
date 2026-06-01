@@ -8,6 +8,7 @@ import logging
 import httpx
 from openai import OpenAI
 
+from distribird.agent import diagnostics
 from distribird.agent.extract import _llm_json_call
 from distribird.agent.ratelimit import AsyncRateLimiter, get_limiter, rate_limited_request
 from distribird.config import Settings
@@ -95,6 +96,8 @@ async def search_semantic_scholar(
     logger.info("[S2:search] query=%r results=%d", query, total)
 
     papers = []
+    raw_entries: list[dict[str, object]] = []
+    tracing = diagnostics.enabled()
     for item in data.get("data", []):
         doi = None
         ext_ids = item.get("externalIds") or {}
@@ -112,6 +115,19 @@ async def search_semantic_scholar(
 
         oa_pdf = item.get("openAccessPdf") or {}
         pdf_url = oa_pdf.get("url") if isinstance(oa_pdf, dict) else None
+
+        if tracing:
+            raw_entries.append(
+                {
+                    "doi": doi,
+                    "title": (item.get("title") or "")[:200],
+                    "year": year,
+                    "citation_count": citation_count,
+                    "relevance_score": relevance,
+                    "has_oa_pdf": pdf_url is not None,
+                    "kept": pdf_url is not None,
+                }
+            )
 
         # Skip papers without open-access full text
         if pdf_url is None:
@@ -137,6 +153,21 @@ async def search_semantic_scholar(
         len(papers),
         total,
     )
+
+    if tracing:
+        diagnostics.record(
+            "search_request",
+            {
+                "source": "semantic_scholar",
+                "query": query,
+                "url": f"{settings.semantic_scholar_base_url}/paper/search",
+                "params": {k: v for k, v in params.items() if k != "fields"},
+                "n_raw": total,
+                "n_after_oa_filter": len(papers),
+                "limit": limit,
+                "results": raw_entries,
+            },
+        )
     return papers[:limit]
 
 
@@ -175,6 +206,19 @@ async def search_all_queries(
         len(all_papers),
         len(result),
     )
+    if diagnostics.enabled():
+        diagnostics.record(
+            "search_ranking",
+            {
+                "n_queries": len(queries),
+                "n_unique": len(all_papers),
+                "n_returned": len(result),
+                "ranked_dois": [
+                    {"doi": p.doi, "relevance_score": p.relevance_score, "year": p.year}
+                    for p in result
+                ],
+            },
+        )
     return result
 
 
@@ -223,6 +267,7 @@ def judge_paper_relevance(
                 settings.llm_model,
                 [{"role": "user", "content": prompt}],
                 temperature=0.0,
+                label="relevance_judgment",
             )
             llm_calls += 1
         except Exception as e:
@@ -411,6 +456,7 @@ def generate_search_queries(
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.3,
+            label="query_generation",
         )
         if isinstance(queries, list):
             result = [str(q) for q in queries[: settings.max_search_queries]]
@@ -517,6 +563,7 @@ async def llm_deep_research(
                 [{"role": "user", "content": prompt}],
                 temperature=0.3,
                 extra_body=extra_body,
+                label="deep_research",
             )
 
         if not isinstance(papers_data, list):

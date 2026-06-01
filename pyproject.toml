@@ -54,6 +54,7 @@ distribird-api = "distribird.api:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/distribird"]
+artifacts = ["src/distribird/export/templates/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

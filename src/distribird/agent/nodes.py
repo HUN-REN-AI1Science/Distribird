@@ -7,6 +7,7 @@ import time
 
 from openai import OpenAI
 
+from distribird.agent import diagnostics
 from distribird.agent.state import (
     IterationBudget,
     MessageKind,
@@ -510,6 +511,7 @@ async def refine_search_node(state: PipelineState) -> dict[str, object]:
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.3,
+            label="search_refinement",
         )
     except Exception as e:
         logger.warning("[node:refine_search] LLM call failed: %s", e)
@@ -636,6 +638,7 @@ async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.3,
+            label="cross_enrichment_queries",
         )
         if isinstance(raw, list):
             new_queries = [str(q) for q in raw[: settings.max_search_queries]]
@@ -736,13 +739,23 @@ def route_after_deliberation(state: PipelineState) -> str:
     budget = state.get("budget", IterationBudget())
     papers = state.get("all_papers", [])
 
-    if budget.can_cross_enrich() and len(papers) >= 2:
-        # Check if papers from multiple agents or high relevance
-        high_rel = [p for p in papers if p.relevance_score > 0.6]
-        if len(high_rel) >= 2:
-            return "cross_enrich"
+    decision = "fetch_fulltext"
+    high_rel = [p for p in papers if p.relevance_score > 0.6]
+    if budget.can_cross_enrich() and len(papers) >= 2 and len(high_rel) >= 2:
+        decision = "cross_enrich"
 
-    return "fetch_fulltext"
+    if diagnostics.enabled():
+        diagnostics.record(
+            "routing",
+            {
+                "gate": "after_deliberation",
+                "decision": decision,
+                "n_papers": len(papers),
+                "n_high_relevance": len(high_rel),
+                "budget": budget.model_dump(),
+            },
+        )
+    return decision
 
 
 def route_after_enrich(state: PipelineState) -> str:
@@ -756,20 +769,26 @@ def route_after_enrich(state: PipelineState) -> str:
     will classify as LIKELY_INVALID without consulting empty paper/value sets.
     """
     settings = _settings_from_state(state)
-    if not settings.enable_validity_check:
-        return "query_gen"
-
     enrichment = state.get("enrichment")
-    if enrichment is None:
-        return "query_gen"
 
-    if enrichment.is_recognized_parameter is False and enrichment.recognition_confidence in {
+    if not settings.enable_validity_check:
+        decision, reason = "query_gen", "validity_check_disabled"
+    elif enrichment is None:
+        decision, reason = "query_gen", "no_enrichment"
+    elif enrichment.is_recognized_parameter is False and enrichment.recognition_confidence in {
         "none",
         "low",
     }:
-        return "validity_check"
+        decision, reason = "validity_check", "unrecognized_parameter"
+    else:
+        decision, reason = "query_gen", "recognized"
 
-    return "query_gen"
+    if diagnostics.enabled():
+        diagnostics.record(
+            "routing",
+            {"gate": "after_enrich", "decision": decision, "reason": reason},
+        )
+    return decision
 
 
 def route_after_quality_gate(state: PipelineState) -> str:
@@ -779,10 +798,21 @@ def route_after_quality_gate(state: PipelineState) -> str:
 
     # Loop A: 0 values, papers exist → refine search
     if quality.needs_search_refinement() and budget.can_refine_search():
-        return "refine_search"
-
+        decision = "refine_search"
     # Loop C: low confidence values → refine extraction
-    if quality.needs_extraction_refinement() and budget.can_refine_extraction():
-        return "refine_extraction"
+    elif quality.needs_extraction_refinement() and budget.can_refine_extraction():
+        decision = "refine_extraction"
+    else:
+        decision = "synthesize"
 
-    return "synthesize"
+    if diagnostics.enabled():
+        diagnostics.record(
+            "routing",
+            {
+                "gate": "after_quality_gate",
+                "decision": decision,
+                "quality": quality.model_dump(),
+                "budget": budget.model_dump(),
+            },
+        )
+    return decision

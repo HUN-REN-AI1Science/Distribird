@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import functools
+import logging
 from typing import Any, Callable, cast
 
 from langgraph.graph import END, START, StateGraph
 
+from distribird.agent import diagnostics
 from distribird.agent.nodes import (
     cross_enrich_node,
     enrich_node,
@@ -27,6 +30,8 @@ from distribird.agent.state import IterationBudget, PipelineState, QualityMetric
 from distribird.config import Settings, get_settings
 from distribird.models import ParameterInput, ParameterValidity, PipelineResult
 
+logger = logging.getLogger(__name__)
+
 ProgressCallback = Callable[[str, dict[str, Any]], None] | None
 
 NODE_META: dict[str, tuple[str, float]] = {
@@ -47,25 +52,36 @@ NODE_META: dict[str, tuple[str, float]] = {
 }
 
 
+def _traced(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap a node so the debug tracer attributes its events to this node."""
+
+    @functools.wraps(fn)
+    async def wrapped(state: PipelineState) -> Any:
+        diagnostics.set_node(name)
+        return await fn(state)
+
+    return wrapped
+
+
 def build_pipeline_graph() -> StateGraph:  # type: ignore[type-arg]
     """Build and compile the LangGraph pipeline."""
     graph = StateGraph(PipelineState)
 
-    # Add nodes
-    graph.add_node("enrich", enrich_node)
-    graph.add_node("query_gen", query_gen_node)
-    graph.add_node("search", search_node)
-    graph.add_node("relevance_judge", relevance_judge_node)
-    graph.add_node("fetch_fulltext", fetch_fulltext_node)
-    graph.add_node("extract", extract_node)
-    graph.add_node("quality_gate", quality_gate_node)
-    graph.add_node("synthesize", synthesize_node)
-    graph.add_node("validity_check", validity_check_node)
+    # Add nodes (wrapped so the debug tracer tags each event with its node)
+    graph.add_node("enrich", _traced("enrich", enrich_node))
+    graph.add_node("query_gen", _traced("query_gen", query_gen_node))
+    graph.add_node("search", _traced("search", search_node))
+    graph.add_node("relevance_judge", _traced("relevance_judge", relevance_judge_node))
+    graph.add_node("fetch_fulltext", _traced("fetch_fulltext", fetch_fulltext_node))
+    graph.add_node("extract", _traced("extract", extract_node))
+    graph.add_node("quality_gate", _traced("quality_gate", quality_gate_node))
+    graph.add_node("synthesize", _traced("synthesize", synthesize_node))
+    graph.add_node("validity_check", _traced("validity_check", validity_check_node))
 
     # Feedback loop nodes
-    graph.add_node("refine_search", refine_search_node)
-    graph.add_node("cross_enrich", cross_enrich_node)
-    graph.add_node("refine_extraction", refine_extraction_node)
+    graph.add_node("refine_search", _traced("refine_search", refine_search_node))
+    graph.add_node("cross_enrich", _traced("cross_enrich", cross_enrich_node))
+    graph.add_node("refine_extraction", _traced("refine_extraction", refine_extraction_node))
 
     # Main flow edges
     graph.add_edge(START, "enrich")
@@ -135,6 +151,9 @@ async def run_parameter_graph(
     from distribird.agent.extract import reset_token_accumulator
     token_usage = reset_token_accumulator()
 
+    # Install a structured debug trace (no-op unless settings.debug_trace is on).
+    trace = diagnostics.start_run(parameter, settings)
+
     compiled = build_pipeline_graph().compile()
 
     budget = IterationBudget(
@@ -186,6 +205,18 @@ async def run_parameter_graph(
             parameter.constraints.upper_bound,
         )
 
+    # Finalize the debug trace: fold in the per-node TraceEvents, persist a JSON
+    # artifact, and attach the dict to the result (None when tracing is disabled).
+    debug_trace: dict[str, Any] | None = None
+    if trace is not None:
+        diagnostics.finish(node_events=final_state.get("trace_events", []))
+        debug_trace = trace.to_dict()
+        try:
+            path = diagnostics.write_trace(trace, settings.trace_output_dir)
+            logger.info("[trace] wrote debug trace to %s", path)
+        except Exception as e:  # pragma: no cover - best-effort persistence
+            logger.warning("[trace] failed to write debug trace: %s", e)
+
     return PipelineResult(
         parameter=parameter,
         prior=prior,
@@ -202,4 +233,5 @@ async def run_parameter_graph(
         validity_signals=final_state.get("validity_signals", {}),
         is_empirical=final_state.get("is_empirical"),
         token_usage=dict(token_usage),
+        debug_trace=debug_trace,
     )

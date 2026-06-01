@@ -164,6 +164,7 @@ def validity_probe_llm(
             settings.llm_model,
             [{"role": "user", "content": prompt}],
             temperature=0.0,
+            label="validity_probe",
         )
     except Exception as e:
         logger.warning("[LLM:validity_probe] failed: %s", e)
