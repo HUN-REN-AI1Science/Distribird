@@ -11,6 +11,7 @@ import time
 from openai import OpenAI
 
 from distribird.agent import diagnostics
+from distribird.agent.llm_client import get_client
 from distribird.config import Settings
 from distribird.models import (
     ConstraintSpec,
@@ -323,7 +324,7 @@ def extract_values_from_paper(
         settings.llm_model,
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     try:
         raw = _llm_json_call(
             client,
@@ -440,7 +441,7 @@ def extract_values_batch(
         len(papers),
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     try:
         raw = _llm_json_call(
             client,
@@ -505,7 +506,7 @@ def extract_values_web_assisted(
         len(papers),
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     extra_body: dict[str, object] = {"web_search_options": {"search_context_size": "high"}}
 
     papers_with_new_values: list[LiteratureEvidence] = []
@@ -657,7 +658,7 @@ def extract_consensus_values(
         len(papers),
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     try:
         raw = _llm_json_call(
             client,

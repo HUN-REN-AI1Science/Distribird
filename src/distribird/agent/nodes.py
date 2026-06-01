@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
-
-from openai import OpenAI
+from collections.abc import Awaitable, Callable
 
 from distribird.agent import diagnostics
+from distribird.agent.llm_client import get_client
 from distribird.agent.state import (
     IterationBudget,
     MessageKind,
@@ -37,17 +38,48 @@ def _trace(node: str, start: float, summary: dict[str, object] | None = None) ->
     )
 
 
+# Node implementations receive (state, settings); the @node decorator exposes
+# them to LangGraph as plain (state) callables.
+NodeImpl = Callable[[PipelineState, Settings], Awaitable[dict[str, object]]]
+NodeFn = Callable[[PipelineState], Awaitable[dict[str, object]]]
+
+
+def node(name: str) -> Callable[[NodeImpl], NodeFn]:
+    """Wrap a pipeline node, removing the repeated timing/settings/trace boilerplate.
+
+    The wrapped implementation receives ``(state, settings)`` — settings are
+    reconstructed from ``state`` once, here — and returns its state-update dict.
+    It may include a ``"_trace"`` key whose value is this node's TraceEvent
+    summary; the decorator times the call, appends the event to ``trace_events``,
+    and merges it into the returned update.
+    """
+
+    def decorator(fn: NodeImpl) -> NodeFn:
+        @functools.wraps(fn)
+        async def wrapper(state: PipelineState) -> dict[str, object]:
+            t0 = time.time()
+            settings = _settings_from_state(state)
+            update = await fn(state, settings)
+            summary = update.pop("_trace", None)
+            traces = list(state.get("trace_events", []))
+            traces.append(_trace(name, t0, summary if isinstance(summary, dict) else None))
+            update["trace_events"] = traces
+            return update
+
+        return wrapper
+
+    return decorator
+
+
 # ---------------------------------------------------------------------------
 # Core pipeline nodes
 # ---------------------------------------------------------------------------
 
 
-async def enrich_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("enrich")
+async def enrich_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     warnings = list(state.get("warnings", []))
-    traces = list(state.get("trace_events", []))
 
     enrichment: EnrichedContext | None = None
     if settings.enable_context_enrichment:
@@ -59,20 +91,17 @@ async def enrich_node(state: PipelineState) -> dict[str, object]:
             logger.warning("[node:enrich] failed: %s", e)
             warnings.append(f"Context enrichment failed: {e}")
 
-    traces.append(_trace("enrich", t0, {"has_enrichment": enrichment is not None}))
     return {
         "enrichment": enrichment,
         "warnings": warnings,
-        "trace_events": traces,
+        "_trace": {"has_enrichment": enrichment is not None},
     }
 
 
-async def query_gen_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("query_gen")
+async def query_gen_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     enrichment = state.get("enrichment")
-    traces = list(state.get("trace_events", []))
 
     from distribird.agent.search import generate_search_queries
 
@@ -81,23 +110,20 @@ async def query_gen_node(state: PipelineState) -> dict[str, object]:
     all_tried = list(state.get("all_queries_tried", []))
     all_tried.extend(queries)
 
-    traces.append(_trace("query_gen", t0, {"n_queries": len(queries)}))
     return {
         "search_queries": queries,
         "all_queries_tried": all_tried,
-        "trace_events": traces,
+        "_trace": {"n_queries": len(queries)},
     }
 
 
-async def search_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("search")
+async def search_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     queries = state.get("search_queries", [])
     enrichment = state.get("enrichment")
     blackboard = list(state.get("blackboard", []))
     warnings = list(state.get("warnings", []))
-    traces = list(state.get("trace_events", []))
 
     if settings.enable_deliberation:
         from distribird.agent.deliberation import deliberate, run_source_agents
@@ -129,17 +155,6 @@ async def search_node(state: PipelineState) -> dict[str, object]:
                 )
 
         new_added = add_papers(state, papers)
-        traces.append(
-            _trace(
-                "search",
-                t0,
-                {
-                    "n_papers": len(papers),
-                    "n_new": len(new_added),
-                    "deliberation": True,
-                },
-            )
-        )
         return {
             "all_papers": state.get("all_papers", []),
             "seen_dois": state.get("seen_dois", set()),
@@ -147,7 +162,11 @@ async def search_node(state: PipelineState) -> dict[str, object]:
             "deliberation": deliberation,
             "blackboard": blackboard,
             "warnings": warnings,
-            "trace_events": traces,
+            "_trace": {
+                "n_papers": len(papers),
+                "n_new": len(new_added),
+                "deliberation": True,
+            },
         }
     else:
         from distribird.agent.search import search_all_queries
@@ -155,34 +174,25 @@ async def search_node(state: PipelineState) -> dict[str, object]:
         papers = await search_all_queries(queries, settings)
         new_added = add_papers(state, papers)
 
-        traces.append(
-            _trace(
-                "search",
-                t0,
-                {
-                    "n_papers": len(papers),
-                    "n_new": len(new_added),
-                    "deliberation": False,
-                },
-            )
-        )
         return {
             "all_papers": state.get("all_papers", []),
             "seen_dois": state.get("seen_dois", set()),
             "blackboard": blackboard,
             "warnings": warnings,
-            "trace_events": traces,
+            "_trace": {
+                "n_papers": len(papers),
+                "n_new": len(new_added),
+                "deliberation": False,
+            },
         }
 
 
-async def relevance_judge_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("relevance_judge")
+async def relevance_judge_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     papers = state.get("all_papers", [])
     enrichment = state.get("enrichment")
     budget = state.get("budget", IterationBudget())
-    traces = list(state.get("trace_events", []))
 
     n_judged = 0
     if settings.enable_relevance_judgment and papers and budget.has_budget():
@@ -193,28 +203,19 @@ async def relevance_judge_node(state: PipelineState) -> dict[str, object]:
         n_judged = sum(1 for p in papers if p.relevance_snippet)
 
     n_high = sum(1 for p in papers if p.relevance_score > 0.7)
-    traces.append(
-        _trace(
-            "relevance_judge",
-            t0,
-            {
-                "n_judged": n_judged,
-                "n_high": n_high,
-            },
-        )
-    )
     return {
         "all_papers": papers,
         "budget": budget,
-        "trace_events": traces,
+        "_trace": {
+            "n_judged": n_judged,
+            "n_high": n_high,
+        },
     }
 
 
-async def fetch_fulltext_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("fetch_fulltext")
+async def fetch_fulltext_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     papers = state.get("all_papers", [])
-    traces = list(state.get("trace_events", []))
 
     n_fulltext = 0
     if papers:
@@ -222,21 +223,18 @@ async def fetch_fulltext_node(state: PipelineState) -> dict[str, object]:
 
         n_fulltext = await fetch_all_fulltexts(papers, settings)
 
-    traces.append(_trace("fetch_fulltext", t0, {"n_fulltext": n_fulltext}))
     return {
         "all_papers": papers,
-        "trace_events": traces,
+        "_trace": {"n_fulltext": n_fulltext},
     }
 
 
-async def extract_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("extract")
+async def extract_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     papers = list(state.get("all_papers", []))
     enrichment = state.get("enrichment")
     warnings = list(state.get("warnings", []))
-    traces = list(state.get("trace_events", []))
 
     from distribird.agent.extract import (
         extract_all_values,
@@ -282,51 +280,35 @@ async def extract_node(state: PipelineState) -> dict[str, object]:
             total_values = sum(len(p.extracted_values) for p in papers_with_values)
             warnings.append("Used web-assisted extraction to look up paper content online.")
 
-    traces.append(
-        _trace(
-            "extract",
-            t0,
-            {
-                "n_papers": len(papers),
-                "n_with_values": len(papers_with_values),
-                "total_values": total_values,
-            },
-        )
-    )
     return {
         "papers_with_values": papers_with_values,
         "warnings": warnings,
-        "trace_events": traces,
+        "_trace": {
+            "n_papers": len(papers),
+            "n_with_values": len(papers_with_values),
+            "total_values": total_values,
+        },
     }
 
 
-async def quality_gate_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    traces = list(state.get("trace_events", []))
+@node("quality_gate")
+async def quality_gate_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     quality = update_quality(state)
-    traces.append(
-        _trace(
-            "quality_gate",
-            t0,
-            {
-                "n_values": quality.n_total_values,
-                "n_papers": quality.n_papers_found,
-                "sufficient": quality.is_sufficient(),
-            },
-        )
-    )
     return {
         "quality": quality,
-        "trace_events": traces,
+        "_trace": {
+            "n_values": quality.n_total_values,
+            "n_papers": quality.n_papers_found,
+            "sufficient": quality.is_sufficient(),
+        },
     }
 
 
-async def synthesize_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
+@node("synthesize")
+async def synthesize_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     papers_with_values = state.get("papers_with_values", [])
     warnings = list(state.get("warnings", []))
-    traces = list(state.get("trace_events", []))
 
     from distribird.agent.synthesize import synthesize_prior
 
@@ -338,34 +320,25 @@ async def synthesize_node(state: PipelineState) -> dict[str, object]:
     if prior.n_sources == 1:
         warnings.append("Prior based on a single source; low confidence.")
 
-    traces.append(
-        _trace(
-            "synthesize",
-            t0,
-            {
-                "family": prior.family.value,
-                "is_informative": prior.is_informative,
-                "n_sources": prior.n_sources,
-            },
-        )
-    )
     return {
         "prior": prior,
         "warnings": warnings,
-        "trace_events": traces,
+        "_trace": {
+            "family": prior.family.value,
+            "is_informative": prior.is_informative,
+            "n_sources": prior.n_sources,
+        },
     }
 
 
-async def validity_check_node(state: PipelineState) -> dict[str, object]:
+@node("validity_check")
+async def validity_check_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     """Classify whether the requested parameter is a real, empirically-measured quantity.
 
     Runs after synthesize. Uses passive heuristics first; optionally runs a single
     LLM probe for ambiguous (SUSPICIOUS) cases when budget allows.
     """
-    t0 = time.time()
-    settings = _settings_from_state(state)
     warnings = list(state.get("warnings", []))
-    traces = list(state.get("trace_events", []))
 
     from distribird.agent.validity import (
         apply_probe_verdict,
@@ -375,14 +348,13 @@ async def validity_check_node(state: PipelineState) -> dict[str, object]:
     from distribird.models import ParameterValidity
 
     if not settings.enable_validity_check:
-        traces.append(_trace("validity_check", t0, {"skipped": True}))
         return {
             "parameter_validity": ParameterValidity.UNKNOWN,
             "validity_reason": "",
             "validity_signals": {},
             "is_empirical": None,
             "warnings": warnings,
-            "trace_events": traces,
+            "_trace": {"skipped": True},
         }
 
     enrichment = state.get("enrichment")
@@ -428,18 +400,6 @@ async def validity_check_node(state: PipelineState) -> dict[str, object]:
         label = verdict.value.replace("_", " ").upper()
         warnings.append(f"Parameter validity: {label} — {reason}")
 
-    traces.append(
-        _trace(
-            "validity_check",
-            t0,
-            {
-                "verdict": verdict.value,
-                "probe_called": probe_called,
-                "is_empirical": is_empirical,
-            },
-        )
-    )
-
     return {
         "parameter_validity": verdict,
         "validity_reason": reason,
@@ -447,7 +407,11 @@ async def validity_check_node(state: PipelineState) -> dict[str, object]:
         "is_empirical": is_empirical,
         "warnings": warnings,
         "budget": budget,
-        "trace_events": traces,
+        "_trace": {
+            "verdict": verdict.value,
+            "probe_called": probe_called,
+            "is_empirical": is_empirical,
+        },
     }
 
 
@@ -456,16 +420,14 @@ async def validity_check_node(state: PipelineState) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
-async def refine_search_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("refine_search")
+async def refine_search_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     budget = state.get("budget", IterationBudget())
     all_tried = list(state.get("all_queries_tried", []))
     papers = state.get("all_papers", [])
     blackboard = list(state.get("blackboard", []))
     warnings = list(state.get("warnings", []))
-    traces = list(state.get("trace_events", []))
 
     from distribird.agent.extract import _llm_json_call
     from distribird.agent.prompts import SEARCH_REFINEMENT
@@ -504,7 +466,7 @@ async def refine_search_node(state: PipelineState) -> dict[str, object]:
         n_queries=settings.max_search_queries,
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     try:
         raw = _llm_json_call(
             client,
@@ -552,34 +514,25 @@ async def refine_search_node(state: PipelineState) -> dict[str, object]:
         f"generated {len(new_queries)} new queries."
     )
 
-    traces.append(
-        _trace(
-            "refine_search",
-            t0,
-            {
-                "n_new_queries": len(new_queries),
-                "round": budget.search_refinement_used,
-            },
-        )
-    )
     return {
         "search_queries": new_queries,
         "all_queries_tried": all_tried,
         "budget": budget,
         "blackboard": blackboard,
         "warnings": warnings,
-        "trace_events": traces,
+        "_trace": {
+            "n_new_queries": len(new_queries),
+            "round": budget.search_refinement_used,
+        },
     }
 
 
-async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("cross_enrich")
+async def cross_enrich_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     papers = state.get("all_papers", [])
     budget = state.get("budget", IterationBudget())
     blackboard = list(state.get("blackboard", []))
-    traces = list(state.get("trace_events", []))
 
     # --- Snowballing (pure S2 API, no LLM cost) ---
     if settings.enable_snowballing and budget.can_snowball():
@@ -630,7 +583,7 @@ async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
         n_queries=settings.max_search_queries,
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     new_queries: list[str] = []
     try:
         raw = _llm_json_call(
@@ -655,36 +608,27 @@ async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
     budget.cross_enrichment_used += 1
     budget.total_llm_calls_used += 1
 
-    traces.append(
-        _trace(
-            "cross_enrich",
-            t0,
-            {
-                "n_key_papers": len(key_papers),
-                "n_new_queries": len(new_queries),
-            },
-        )
-    )
     return {
         "all_papers": state.get("all_papers", []),
         "seen_dois": state.get("seen_dois", set()),
         "search_queries": new_queries,
         "budget": budget,
         "blackboard": blackboard,
-        "trace_events": traces,
+        "_trace": {
+            "n_key_papers": len(key_papers),
+            "n_new_queries": len(new_queries),
+        },
     }
 
 
-async def refine_extraction_node(state: PipelineState) -> dict[str, object]:
-    t0 = time.time()
-    settings = _settings_from_state(state)
+@node("refine_extraction")
+async def refine_extraction_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     parameter = state["parameter"]
     papers = state.get("all_papers", [])
     papers_with_values = list(state.get("papers_with_values", []))
     enrichment = state.get("enrichment")
     budget = state.get("budget", IterationBudget())
     warnings = list(state.get("warnings", []))
-    traces = list(state.get("trace_events", []))
 
     from distribird.agent.extract import extract_values_web_assisted
 
@@ -697,6 +641,7 @@ async def refine_extraction_node(state: PipelineState) -> dict[str, object]:
     ]
     candidates.sort(key=lambda p: p.relevance_score, reverse=True)
 
+    n_before = len(papers_with_values)
     if candidates:
         web_papers = extract_values_web_assisted(
             candidates[:10],
@@ -711,21 +656,14 @@ async def refine_extraction_node(state: PipelineState) -> dict[str, object]:
     budget.extraction_refinement_used += 1
     budget.total_llm_calls_used += 1
 
-    traces.append(
-        _trace(
-            "refine_extraction",
-            t0,
-            {
-                "n_candidates": len(candidates),
-                "n_new_values": len(papers_with_values) - len(state.get("papers_with_values", [])),
-            },
-        )
-    )
     return {
         "papers_with_values": papers_with_values,
         "budget": budget,
         "warnings": warnings,
-        "trace_events": traces,
+        "_trace": {
+            "n_candidates": len(candidates),
+            "n_new_values": len(papers_with_values) - n_before,
+        },
     }
 
 

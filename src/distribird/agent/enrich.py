@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from openai import OpenAI
-
 from distribird.agent.extract import _llm_json_call
+from distribird.agent.llm_client import get_client
 from distribird.config import Settings
 from distribird.models import EnrichedContext, ParameterInput
 
@@ -31,7 +30,7 @@ def research_model(domain_context: str, settings: Settings) -> str:
         settings.llm_web_search,
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     raw = _llm_json_call(
         client,
         settings.llm_model,
@@ -81,7 +80,7 @@ def enrich_parameter(
     # No web search for enrichment — the model already has domain knowledge
     # from research_model(), and web search results bloat context, causing
     # JSON truncation/malformation for complex parameters.
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     raw = _llm_json_call(
         client,
         settings.llm_model,

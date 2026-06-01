@@ -149,8 +149,8 @@ def test_build_deliberation_prompt(parameter):
 
 @pytest.mark.asyncio
 @patch("distribird.agent.deliberation._llm_json_call")
-@patch("distribird.agent.deliberation.OpenAI")
-async def test_deliberate_with_mock_llm(mock_openai, mock_llm_call, parameter, settings):
+@patch("distribird.agent.deliberation.get_client")
+async def test_deliberate_with_mock_llm(mock_get_client, mock_llm_call, parameter, settings):
     findings = [
         AgentFinding(
             agent_name="s2",
@@ -192,8 +192,10 @@ async def test_deliberate_with_mock_llm(mock_openai, mock_llm_call, parameter, s
 
 @pytest.mark.asyncio
 @patch("distribird.agent.deliberation._llm_json_call")
-@patch("distribird.agent.deliberation.OpenAI")
-async def test_deliberate_llm_failure_fallback(mock_openai, mock_llm_call, parameter, settings):
+@patch("distribird.agent.deliberation.get_client")
+async def test_deliberate_llm_failure_fallback(
+    mock_get_client, mock_llm_call, parameter, settings
+):
     findings = [
         AgentFinding(
             agent_name="s2",

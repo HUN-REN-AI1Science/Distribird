@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Protocol
 
-from openai import OpenAI
-
 from distribird.agent.extract import _llm_json_call
+from distribird.agent.llm_client import get_client
 from distribird.agent.prompts import WEB_SEARCH_AGENT
 from distribird.agent.search import (
     _CONFIDENCE_TO_RELEVANCE,
@@ -93,7 +92,7 @@ class WebSearchAgent:
             unit=parameter.unit,
             domain_context=parameter.domain_context,
         )
-        client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+        client = get_client(settings)
         papers_data = _llm_json_call(
             client,
             settings.llm_model,

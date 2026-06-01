@@ -202,14 +202,14 @@ class TestDeepResearchDedicatedModel:
             constraints=ConstraintSpec(lower_bound=0, upper_bound=12),
         )
 
-    @patch("distribird.agent.search.OpenAI")
+    @patch("distribird.agent.search.get_deep_research_client")
     @pytest.mark.asyncio
-    async def test_uses_dedicated_model(self, mock_openai_cls, parameter):
+    async def test_uses_dedicated_model(self, mock_dr_client, parameter):
         """Deep research uses dedicated endpoint and web prompt."""
         import json
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_dr_client.return_value = mock_client
 
         papers_data = [
             {
@@ -232,10 +232,7 @@ class TestDeepResearchDedicatedModel:
         s = Settings()
         results = await llm_deep_research(parameter, s)
 
-        mock_openai_cls.assert_called_once_with(
-            base_url=s.deep_research_base_url,
-            api_key=s.deep_research_api_key,
-        )
+        mock_dr_client.assert_called_once_with(s)
         call_kwargs = mock_client.responses.create.call_args
         assert call_kwargs.kwargs["model"] == "o4-mini-deep-research"
         user_content = call_kwargs.kwargs["input"]
@@ -256,13 +253,13 @@ class TestDeepResearchConfidence:
             constraints=ConstraintSpec(lower_bound=0, upper_bound=12),
         )
 
-    @patch("distribird.agent.search.OpenAI")
+    @patch("distribird.agent.search.get_deep_research_client")
     @pytest.mark.asyncio
-    async def test_confidence_maps_to_relevance(self, mock_openai_cls, parameter, settings):
+    async def test_confidence_maps_to_relevance(self, mock_dr_client, parameter, settings):
         import json
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_dr_client.return_value = mock_client
 
         papers_data = [
             {

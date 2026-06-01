@@ -37,6 +37,11 @@ def _mean_std_floored(values: np.ndarray, weights: np.ndarray | None) -> tuple[f
     return mu, sigma
 
 
+def _log_likelihood(logpdf: np.ndarray, weights: np.ndarray | None) -> float:
+    """Sum the per-point log-densities, weighted when ``weights`` is provided."""
+    return float(np.sum(weights * logpdf)) if weights is not None else float(np.sum(logpdf))
+
+
 def _fit_truncated_normal(
     values: np.ndarray, lower: float, upper: float, weights: np.ndarray | None = None
 ) -> FitCandidate | None:
@@ -47,10 +52,7 @@ def _fit_truncated_normal(
     b_std = (upper - mu) / sigma
     try:
         logpdf = stats.truncnorm.logpdf(values, a_std, b_std, loc=mu, scale=sigma)
-        if weights is not None:
-            ll = float(np.sum(weights * logpdf))
-        else:
-            ll = float(np.sum(logpdf))
+        ll = _log_likelihood(logpdf, weights)
         if not np.isfinite(ll):
             return None
     except Exception:
@@ -69,10 +71,7 @@ def _fit_normal(values: np.ndarray, weights: np.ndarray | None = None) -> FitCan
     mu, sigma = _mean_std_floored(values, weights)
     try:
         logpdf = stats.norm.logpdf(values, loc=mu, scale=sigma)
-        if weights is not None:
-            ll = float(np.sum(weights * logpdf))
-        else:
-            ll = float(np.sum(logpdf))
+        ll = _log_likelihood(logpdf, weights)
         if not np.isfinite(ll):
             return None
     except Exception:
@@ -95,10 +94,7 @@ def _fit_gamma(values: np.ndarray, weights: np.ndarray | None = None) -> FitCand
             warnings.simplefilter("ignore")
             a_shape, loc, scale = stats.gamma.fit(values, floc=0)
         logpdf = stats.gamma.logpdf(values, a_shape, loc=0, scale=scale)
-        if weights is not None:
-            ll = float(np.sum(weights * logpdf))
-        else:
-            ll = float(np.sum(logpdf))
+        ll = _log_likelihood(logpdf, weights)
         if not np.isfinite(ll):
             return None
     except Exception:
@@ -121,10 +117,7 @@ def _fit_lognormal(values: np.ndarray, weights: np.ndarray | None = None) -> Fit
             warnings.simplefilter("ignore")
             shape, loc, scale = stats.lognorm.fit(values, floc=0)
         logpdf = stats.lognorm.logpdf(values, shape, loc=0, scale=scale)
-        if weights is not None:
-            ll = float(np.sum(weights * logpdf))
-        else:
-            ll = float(np.sum(logpdf))
+        ll = _log_likelihood(logpdf, weights)
         if not np.isfinite(ll):
             return None
     except Exception:
@@ -152,10 +145,7 @@ def _fit_beta(
             warnings.simplefilter("ignore")
             a, b, loc, scale = stats.beta.fit(scaled, floc=0, fscale=1)
         logpdf = stats.beta.logpdf(scaled, a, b, loc=0, scale=1)
-        if weights is not None:
-            ll = float(np.sum(weights * logpdf))
-        else:
-            ll = float(np.sum(logpdf))
+        ll = _log_likelihood(logpdf, weights)
         if not np.isfinite(ll):
             return None
     except Exception:

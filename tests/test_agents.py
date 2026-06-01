@@ -68,8 +68,8 @@ async def test_semantic_scholar_agent(mock_search, parameter, settings, sample_p
 @pytest.mark.asyncio
 @patch("distribird.agent.agents.verify_deep_research_papers", new_callable=AsyncMock)
 @patch("distribird.agent.agents._llm_json_call")
-@patch("distribird.agent.agents.OpenAI")
-async def test_web_search_agent(mock_openai, mock_llm_call, mock_verify, parameter, settings):
+@patch("distribird.agent.agents.get_client")
+async def test_web_search_agent(mock_get_client, mock_llm_call, mock_verify, parameter, settings):
     from distribird.agent.agents import WebSearchAgent
 
     mock_llm_call.return_value = [

@@ -10,6 +10,7 @@ from openai import OpenAI
 
 from distribird.agent import diagnostics
 from distribird.agent.extract import _llm_json_call
+from distribird.agent.llm_client import get_client, get_deep_research_client
 from distribird.agent.ratelimit import AsyncRateLimiter, get_limiter, rate_limited_request
 from distribird.config import Settings
 from distribird.models import EnrichedContext, LiteratureEvidence, ParameterInput
@@ -259,7 +260,7 @@ def judge_paper_relevance(
         return 0
 
     enrichment_block = _build_enrichment_block(enrichment)
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     llm_calls = 0
 
     for start in range(0, len(unjudged), batch_size):
@@ -465,7 +466,7 @@ def generate_search_queries(
         settings.max_search_queries,
     )
 
-    client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    client = get_client(settings)
     try:
         queries = _llm_json_call(
             client,
@@ -558,10 +559,7 @@ async def llm_deep_research(
         unit=parameter.unit,
         domain_context=parameter.domain_context,
     )
-    client = OpenAI(
-        base_url=settings.deep_research_base_url,
-        api_key=settings.deep_research_api_key,
-    )
+    client = get_deep_research_client(settings)
     model = settings.deep_research_model
     extra_body = None
     logger.info(

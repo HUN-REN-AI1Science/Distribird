@@ -125,9 +125,8 @@ def validity_probe_llm(
 
     Returns the parsed JSON dict {verdict, is_empirical, reason}, or None on failure.
     """
-    from openai import OpenAI
-
     from distribird.agent.extract import _llm_json_call
+    from distribird.agent.llm_client import get_client
     from distribird.agent.prompts import PARAMETER_VALIDITY_PROBE
 
     is_recognized = enrichment.is_recognized_parameter if enrichment else None
@@ -158,7 +157,7 @@ def validity_probe_llm(
     )
 
     try:
-        client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+        client = get_client(settings)
         raw = _llm_json_call(
             client,
             settings.llm_model,

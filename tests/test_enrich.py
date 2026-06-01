@@ -33,10 +33,10 @@ def _mock_llm_response(content: str) -> MagicMock:
 
 
 class TestResearchModel:
-    @patch("distribird.agent.enrich.OpenAI")
-    def test_research_model(self, mock_openai_cls, settings):
+    @patch("distribird.agent.enrich.get_client")
+    def test_research_model(self, mock_get_client, settings):
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         response_data = {
             "model_name": "Biome-BGCMuSo",
@@ -60,10 +60,10 @@ class TestResearchModel:
 
 
 class TestEnrichParameter:
-    @patch("distribird.agent.enrich.OpenAI")
-    def test_enrich_parameter(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.enrich.get_client")
+    def test_enrich_parameter(self, mock_get_client, parameter, settings):
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         response_data = {
             "parameter_meaning": "Controls belowground vs aboveground partitioning.",

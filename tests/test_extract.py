@@ -49,10 +49,10 @@ def test_passes_bounds_check():
     assert _passes_bounds_check(ExtractedValue(reported_value=None), constraint)
 
 
-@patch("distribird.agent.extract.OpenAI")
-def test_extract_values(mock_openai_cls, parameter, paper, settings):
+@patch("distribird.agent.extract.get_client")
+def test_extract_values(mock_get_client, parameter, paper, settings):
     mock_client = MagicMock()
-    mock_openai_cls.return_value = mock_client
+    mock_get_client.return_value = mock_client
 
     mock_response = MagicMock()
     mock_response.choices = [
@@ -73,10 +73,10 @@ def test_extract_values(mock_openai_cls, parameter, paper, settings):
     assert values[0].reported_value == 5.2
 
 
-@patch("distribird.agent.extract.OpenAI")
-def test_extract_filters_out_of_bounds(mock_openai_cls, parameter, paper, settings):
+@patch("distribird.agent.extract.get_client")
+def test_extract_filters_out_of_bounds(mock_get_client, parameter, paper, settings):
     mock_client = MagicMock()
-    mock_openai_cls.return_value = mock_client
+    mock_get_client.return_value = mock_client
 
     mock_response = MagicMock()
     mock_response.choices = [
@@ -146,14 +146,14 @@ class TestLlmJsonCall:
 class TestBatchExtraction:
     """Tests for batched extraction."""
 
-    @patch("distribird.agent.extract.OpenAI")
-    def test_batch_call(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.extract.get_client")
+    def test_batch_call(self, mock_get_client, parameter, settings):
         papers = [
             LiteratureEvidence(title=f"Paper {i}", abstract=f"LAI was {4 + i}.") for i in range(3)
         ]
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [
             MagicMock(
@@ -177,13 +177,13 @@ class TestBatchExtraction:
         assert len(results[1]) == 1
         assert len(results[2]) == 0
 
-    @patch("distribird.agent.extract.OpenAI")
-    def test_batch_fallback_to_per_paper(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.extract.get_client")
+    def test_batch_fallback_to_per_paper(self, mock_get_client, parameter, settings):
         """When batch call returns non-dict, falls back to per-paper."""
         papers = [LiteratureEvidence(title="Paper 0", abstract="LAI was 4.0.")]
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # First call (batch) returns invalid format, second call (per-paper fallback) works
         batch_response = MagicMock()
@@ -206,8 +206,8 @@ class TestBatchExtraction:
         assert len(results[0]) == 1
         assert results[0][0].reported_value == 4.0
 
-    @patch("distribird.agent.extract.OpenAI")
-    def test_extract_all_uses_batches(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.extract.get_client")
+    def test_extract_all_uses_batches(self, mock_get_client, parameter, settings):
         """extract_all_values should chunk into batches."""
         papers = [
             LiteratureEvidence(title=f"Paper {i}", abstract=f"LAI was {4 + i * 0.1}.")
@@ -215,7 +215,7 @@ class TestBatchExtraction:
         ]
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # Two batch calls: batch of 5, then batch of 2
         batch1_response = MagicMock()
@@ -250,8 +250,8 @@ class TestBatchExtraction:
 class TestWebAssistedExtraction:
     """Tests for web-assisted extraction."""
 
-    @patch("distribird.agent.extract.OpenAI")
-    def test_web_assisted_extraction(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.extract.get_client")
+    def test_web_assisted_extraction(self, mock_get_client, parameter, settings):
         """Web-assisted extraction returns values for papers found online."""
         papers = [
             LiteratureEvidence(
@@ -269,7 +269,7 @@ class TestWebAssistedExtraction:
         ]
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [
             MagicMock(
@@ -297,15 +297,15 @@ class TestWebAssistedExtraction:
         assert result[0].title == "Paper A"
         assert result[0].extracted_values[0].reported_value == 6.1
 
-    @patch("distribird.agent.extract.OpenAI")
-    def test_web_assisted_no_values(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.extract.get_client")
+    def test_web_assisted_no_values(self, mock_get_client, parameter, settings):
         """Returns empty when LLM finds no values online."""
         papers = [
             LiteratureEvidence(title="Paper X", doi="10.1234/x", abstract="Irrelevant."),
         ]
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps({"0": []})))]
         mock_client.chat.completions.create.return_value = mock_response
@@ -313,8 +313,8 @@ class TestWebAssistedExtraction:
         result = extract_values_web_assisted(papers, parameter, settings)
         assert result == []
 
-    @patch("distribird.agent.extract.OpenAI")
-    def test_web_assisted_max_papers_cap(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.extract.get_client")
+    def test_web_assisted_max_papers_cap(self, mock_get_client, parameter, settings):
         """Only top max_papers are sent to LLM."""
         papers = [
             LiteratureEvidence(
@@ -326,7 +326,7 @@ class TestWebAssistedExtraction:
         ]
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
         mock_response = MagicMock()
         # Return empty for all — we just care about how many batches are called
         mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps({})))]
@@ -337,8 +337,8 @@ class TestWebAssistedExtraction:
         # 10 papers in batches of 3 → ceil(10/3) = 4 calls
         assert mock_client.chat.completions.create.call_count == 4
 
-    @patch("distribird.agent.extract.OpenAI")
-    def test_web_assisted_includes_doi(self, mock_openai_cls, parameter, settings):
+    @patch("distribird.agent.extract.get_client")
+    def test_web_assisted_includes_doi(self, mock_get_client, parameter, settings):
         """Verify the prompt sent to LLM includes paper DOIs."""
         papers = [
             LiteratureEvidence(
@@ -349,7 +349,7 @@ class TestWebAssistedExtraction:
         ]
 
         mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
+        mock_get_client.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps({"0": []})))]
         mock_client.chat.completions.create.return_value = mock_response

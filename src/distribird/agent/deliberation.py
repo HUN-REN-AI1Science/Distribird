@@ -6,8 +6,6 @@ import asyncio
 import logging
 import re
 
-from openai import OpenAI
-
 from distribird.agent.agents import (
     DeepResearchAgent,
     OpenAlexAgent,
@@ -16,6 +14,7 @@ from distribird.agent.agents import (
     WebSearchAgent,
 )
 from distribird.agent.extract import _build_context_block, _llm_json_call
+from distribird.agent.llm_client import get_client
 from distribird.agent.prompts import DELIBERATION_MODERATOR
 from distribird.agent.search import stable_relevance_key
 from distribird.config import Settings
@@ -216,7 +215,7 @@ async def deliberate(
     model = settings.deliberation_model or settings.llm_model
 
     try:
-        client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+        client = get_client(settings)
         result = _llm_json_call(
             client,
             model,
