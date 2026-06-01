@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     enable_stealth_fetch: bool = False
     stealth_fetch_timeout: float = 90.0
 
+    # When a PDF URL serves HTML instead of a PDF, extract the article text from
+    # the HTML (e.g. PubMed Central full-text pages, repository and DOAJ pages).
+    # A quality gate rejects bot-challenge interstitials and thin/abstract-only
+    # pages so they do not pollute extraction. On by default.
+    enable_html_fulltext: bool = True
+    html_fulltext_min_chars: int = 2000
+
     max_parallel_parameters: int = 3
     enable_context_enrichment: bool = True
     enable_semantic_scholar: bool = True

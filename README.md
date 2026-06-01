@@ -122,9 +122,12 @@ DISTRIBIRD_SEMANTIC_SCHOLAR_API_KEY=""            # optional, increases rate lim
 DISTRIBIRD_OPENALEX_EMAIL=""                       # your email; enables the OA mirror fallback
 DISTRIBIRD_ENABLE_OA_MIRROR_FALLBACK="true"        # default; Unpaywall mirrors over plain HTTP
 DISTRIBIRD_ENABLE_STEALTH_FETCH="false"            # opt-in stealth browser (see Install)
+DISTRIBIRD_ENABLE_HTML_FULLTEXT="true"             # default; extract text from HTML full-text pages
 ```
 
 **Full-text PDF fallback.** When a paper's PDF URL is blocked, Distribird tries the direct URL first, then open-access mirrors through Unpaywall, then the stealth browser if it is enabled. The Unpaywall step needs `DISTRIBIRD_OPENALEX_EMAIL` set to a real address and is skipped without one. The stealth step needs the `stealth` extra and a host that can run a browser; it is skipped on Streamlit Community Cloud. With both off, only the direct URL is used.
+
+When a URL serves HTML instead of a PDF, Distribird extracts the article text from the HTML (for example PubMed Central full-text pages and many repository pages). A quality check rejects bot-challenge pages and thin abstract-only pages so they do not pollute extraction. This is on by default; set `DISTRIBIRD_ENABLE_HTML_FULLTEXT=false` to turn it off, or raise `DISTRIBIRD_HTML_FULLTEXT_MIN_CHARS` to be stricter about what counts as an article.
 
 **Sidebar behaviour in the Streamlit UI:**
 

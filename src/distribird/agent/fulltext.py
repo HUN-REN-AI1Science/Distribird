@@ -47,6 +47,18 @@ _CITATION_PDF_URL = re.compile(
     re.IGNORECASE,
 )
 
+# Markers of a JS bot-challenge or access-wall interstitial rather than the
+# article itself. When HTML extraction hits one of these, we reject the text so
+# the challenge boilerplate is not mistaken for paper content. Only the start of
+# the text is scanned (challenges front-load the message) so a long article that
+# merely mentions one of these words in its body is not falsely rejected.
+_HTML_BOT_CHALLENGE = re.compile(
+    r"(?i)(?:verifying you are human|just a moment|checking your browser"
+    r"|enable javascript and cookies|please enable cookies|captcha"
+    r"|are you a robot|access denied|ddos protection|cf-chl|cloudflare)"
+)
+_HTML_CHALLENGE_SCAN_CHARS = 1500
+
 # Section headers that likely contain parameter values
 _PRIORITY_SECTIONS = re.compile(
     r"(?i)^(?:2\.?|3\.?|4\.?)?\s*"
@@ -55,14 +67,13 @@ _PRIORITY_SECTIONS = re.compile(
 )
 
 
-def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extract text from PDF bytes using PyMuPDF."""
-    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")  # type: ignore[no-untyped-call]
-    pages = []
-    for page in doc:  # type: ignore[attr-defined]
-        pages.append(page.get_text())
-    doc.close()  # type: ignore[no-untyped-call]
-    return "\n".join(pages)
+def _extract_text(content: bytes, filetype: str) -> str:
+    """Extract text from document bytes using PyMuPDF (``filetype`` pdf or html)."""
+    doc = pymupdf.open(stream=content, filetype=filetype)  # type: ignore[no-untyped-call]
+    try:
+        return "\n".join(page.get_text() for page in doc)  # type: ignore[attr-defined]
+    finally:
+        doc.close()  # type: ignore[no-untyped-call]
 
 
 def _smart_truncate(text: str, max_chars: int = MAX_TEXT_CHARS) -> str:
@@ -110,7 +121,7 @@ def _pdf_bytes_to_text(content: bytes) -> tuple[str, dict[str, object]]:
     Returns ``(text, extra)``; ``text`` is empty when the bytes yield no text.
     ``extra`` carries byte/char counts for the trace.
     """
-    raw_text = _extract_text_from_pdf(content)
+    raw_text = _extract_text(content, "pdf")
     if not raw_text:
         return "", {"n_bytes": len(content)}
     text = _smart_truncate(raw_text)
@@ -119,6 +130,52 @@ def _pdf_bytes_to_text(content: bytes) -> tuple[str, dict[str, object]]:
         "n_chars_raw": len(raw_text),
         "n_chars_kept": len(text),
     }
+
+
+def _html_bytes_to_text(content: bytes, min_chars: int) -> tuple[str, str, dict[str, object]]:
+    """Extract and smart-truncate article text from raw HTML bytes.
+
+    Some publishers serve the full article (or a landing page) as HTML rather
+    than a PDF. PyMuPDF opens HTML and drops ``<script>``/``<style>``, so we
+    reuse the same extraction path as PDFs. A quality gate guards against feeding
+    bot-challenge interstitials or thin abstract-only pages to the extractor.
+
+    Returns ``(text, reason, extra)``. On success ``text`` is non-empty and
+    ``reason`` is empty; on rejection ``text`` is empty and ``reason`` names why
+    (``html_bot_challenge`` / ``html_too_thin`` / ``html_parse_error``).
+    """
+    try:
+        raw_text = _extract_text(content, "html")
+    except Exception:
+        return "", "html_parse_error", {"n_bytes": len(content)}
+
+    extra: dict[str, object] = {"n_bytes": len(content), "n_chars_raw": len(raw_text)}
+    if _HTML_BOT_CHALLENGE.search(raw_text[:_HTML_CHALLENGE_SCAN_CHARS]):
+        return "", "html_bot_challenge", extra
+    if len(raw_text) < min_chars:
+        return "", "html_too_thin", extra
+    text = _smart_truncate(raw_text)
+    extra["n_chars_kept"] = len(text)
+    return text, "", extra
+
+
+def _bytes_to_text(
+    body: bytes, content_type: str, settings: Settings
+) -> tuple[str, str, dict[str, object]]:
+    """Pick the extractor for ``body`` based on ``content_type`` and run it.
+
+    Returns ``(text, reason, extra)``. HTML responses go through the gated
+    :func:`_html_bytes_to_text` (so bot-challenge and thin pages are rejected);
+    everything else uses the ungated PDF path. PyMuPDF auto-detects the format
+    from the bytes regardless of the ``filetype`` hint, so routing HTML through
+    the PDF path would silently bypass the quality gate; this keeps the two
+    extractors apart by content-type.
+    """
+    if settings.enable_html_fulltext and "pdf" not in content_type and "html" in content_type:
+        text, reason, extra = _html_bytes_to_text(body, settings.html_fulltext_min_chars)
+        return text, ("html_fulltext" if text else reason), extra
+    text, extra = _pdf_bytes_to_text(body)
+    return text, ("ok" if text else "empty_pdf_text"), extra
 
 
 def _trace_pdf(
@@ -197,14 +254,16 @@ async def _resolve_oa_mirrors(
 
 
 async def _attempt_fetch(
-    client: httpx.AsyncClient, url: str, _depth: int = 0
+    client: httpx.AsyncClient, url: str, settings: Settings, _depth: int = 0
 ) -> tuple[str, str, str, dict[str, object]]:
     """Fetch and extract text from one PDF URL.
 
     Returns ``(text, outcome, reason, extra)`` where ``outcome`` is one of
     ``downloaded`` / ``skipped`` / ``failed``. ``text`` is non-empty only on a
     ``downloaded`` outcome. If ``url`` serves an HTML landing page that advertises
-    a ``citation_pdf_url``, follow it once to reach the real PDF.
+    a ``citation_pdf_url``, follow it once to reach the real PDF; otherwise, when
+    ``enable_html_fulltext`` is on, fall back to extracting the article text from
+    the HTML itself.
     """
     try:
         resp = await client.get(url)
@@ -227,13 +286,29 @@ async def _attempt_fetch(
 
         content_type = resp.headers.get("content-type", "")
         if "pdf" not in content_type and not url.endswith(".pdf"):
+            is_html = "html" in content_type
             # HTML landing page — follow its citation_pdf_url to the real PDF (once).
-            if _depth == 0 and "html" in content_type:
+            if _depth == 0 and is_html:
                 m = _CITATION_PDF_URL.search(resp.text)
                 pdf_url = (m.group(1) or m.group(2)) if m else None
                 if pdf_url and pdf_url != url:
                     logger.info("[fulltext] landing page → citation_pdf_url=%s", pdf_url)
-                    return await _attempt_fetch(client, urljoin(url, pdf_url), _depth + 1)
+                    return await _attempt_fetch(
+                        client, urljoin(url, pdf_url), settings, _depth + 1
+                    )
+            # No PDF available — try the HTML itself (PMC, repositories, DOAJ).
+            if is_html and settings.enable_html_fulltext:
+                text, reason, extra = _html_bytes_to_text(
+                    resp.content, settings.html_fulltext_min_chars
+                )
+                extra = {"content_type": content_type, **extra}
+                if text:
+                    logger.info(
+                        "[fulltext] extracted %d chars of HTML full text from %s", len(text), url
+                    )
+                    return text, "downloaded", "html_fulltext", extra
+                logger.info("[fulltext] HTML full text rejected (%s) from %s", reason, url)
+                return "", "skipped", reason, extra
             logger.info("[fulltext] skipping non-PDF content-type=%r", content_type)
             return "", "skipped", "non_pdf_content_type", {"content_type": content_type}
 
@@ -273,7 +348,7 @@ async def fetch_paper_fulltext(
         headers=_BROWSER_HEADERS,
     ) as client:
         logger.info("[fulltext] fetching pdf=%r paper=%r", paper.pdf_url, paper.title[:60])
-        text, outcome, reason, extra = await _attempt_fetch(client, paper.pdf_url)
+        text, outcome, reason, extra = await _attempt_fetch(client, paper.pdf_url, settings)
         _trace_pdf(paper, paper.pdf_url, outcome, reason, **extra)
         if text:
             return text
@@ -287,7 +362,7 @@ async def fetch_paper_fulltext(
         if mirrors:
             logger.info("[fulltext] trying %d OA mirror(s) for %r", len(mirrors), paper.doi)
         for mirror in mirrors:
-            text, outcome, reason, extra = await _attempt_fetch(client, mirror)
+            text, outcome, reason, extra = await _attempt_fetch(client, mirror, settings)
             _trace_pdf(paper, mirror, outcome, reason, via="unpaywall", **extra)
             if text:
                 return text
@@ -370,17 +445,17 @@ async def _stealth_fetch_batch(
                                 paper, url, "failed", f"stealth_http_{resp.status}", via="stealth"
                             )
                             continue
-                        text, extra = _pdf_bytes_to_text(await resp.body())
+                        body = await resp.body()
+                        ctype = resp.headers.get("content-type", "")
+                        text, reason, extra = _bytes_to_text(body, ctype, settings)
                         if text:
                             paper.full_text = text
-                            _trace_pdf(paper, url, "downloaded", "ok", via="stealth", **extra)
+                            _trace_pdf(paper, url, "downloaded", reason, via="stealth", **extra)
                             logger.info(
                                 "[fulltext] stealth recovered %r (%d chars)", paper.doi, len(text)
                             )
                         else:
-                            _trace_pdf(
-                                paper, url, "failed", "empty_pdf_text", via="stealth", **extra
-                            )
+                            _trace_pdf(paper, url, "failed", reason, via="stealth", **extra)
                     except Exception as e:
                         _trace_pdf(
                             paper,
