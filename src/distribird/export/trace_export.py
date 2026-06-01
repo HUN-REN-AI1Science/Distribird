@@ -26,10 +26,8 @@ _DATA_TOKEN = "__TRACE_DATA__"
 
 def _load_template() -> str:
     """Load the viewer template as package data (works for installed wheels/zips)."""
-    return (
-        files("distribird.export")
-        .joinpath("templates", "trace_viewer.html")
-        .read_text(encoding="utf-8")
+    return (files("distribird.export") / "templates" / "trace_viewer.html").read_text(
+        encoding="utf-8"
     )
 
 

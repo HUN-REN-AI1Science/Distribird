@@ -220,7 +220,7 @@ def _llm_json_call(
         }
         if not reasoning:
             create_kwargs["temperature"] = temperature
-        response = client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
+        response = client.chat.completions.create(**create_kwargs)  # type: ignore[call-overload]
         _record_usage(response)
         usage = _usage_dict(response) if tracing else {}
         raw_text = response.choices[0].message.content or ""
@@ -329,7 +329,7 @@ def extract_values_from_paper(
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.0,
+            temperature=settings.llm_temperature_precise,
             label="value_extraction",
         )
     except (json.JSONDecodeError, Exception) as e:
@@ -446,7 +446,7 @@ def extract_values_batch(
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.0,
+            temperature=settings.llm_temperature_precise,
             label="batch_value_extraction",
         )
     except (json.JSONDecodeError, Exception) as e:
@@ -538,7 +538,7 @@ def extract_values_web_assisted(
                 client,
                 settings.llm_model,
                 [{"role": "user", "content": prompt}],
-                temperature=0.0,
+                temperature=settings.llm_temperature_precise,
                 extra_body=extra_body,
                 label="web_assisted_extraction",
             )
@@ -663,7 +663,7 @@ def extract_consensus_values(
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.0,
+            temperature=settings.llm_temperature_precise,
             label="consensus_extraction",
         )
     except (json.JSONDecodeError, Exception) as e:

@@ -234,7 +234,7 @@ async def deliberate(
             client,
             model,
             [{"role": "user", "content": prompt}],
-            temperature=0.1,
+            temperature=settings.llm_temperature_deliberation,
             label="deliberation_moderator",
         )
 

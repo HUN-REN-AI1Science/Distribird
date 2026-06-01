@@ -266,7 +266,7 @@ def judge_paper_relevance(
                 client,
                 settings.llm_model,
                 [{"role": "user", "content": prompt}],
-                temperature=0.0,
+                temperature=settings.llm_temperature_precise,
                 label="relevance_judgment",
             )
             llm_calls += 1
@@ -455,7 +455,7 @@ def generate_search_queries(
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=settings.llm_temperature_creative,
             label="query_generation",
         )
         if isinstance(queries, list):
@@ -481,8 +481,9 @@ def _is_deep_research_model(model: str) -> bool:
     return "deep-research" in (model or "").lower()
 
 
-def _deep_research_via_responses(client, model: str, prompt: str,
-                                 parameter: ParameterInput) -> object:
+def _deep_research_via_responses(
+    client: OpenAI, model: str, prompt: str, parameter: ParameterInput
+) -> object:
     """Call a deep-research model through the Responses API with web search,
     then parse the model's text output as JSON. Returns the parsed object."""
     from distribird.agent.extract import _strip_code_fences
@@ -510,8 +511,7 @@ def _deep_research_via_responses(client, model: str, prompt: str,
                     chunks.append(t)
         text = "\n".join(chunks)
     text = _strip_code_fences(text)
-    logger.info("[LLM:deep_research] param=%r responses-API chars=%d",
-                parameter.name, len(text))
+    logger.info("[LLM:deep_research] param=%r responses-API chars=%d", parameter.name, len(text))
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -561,7 +561,7 @@ async def llm_deep_research(
                 client,
                 model,
                 [{"role": "user", "content": prompt}],
-                temperature=0.3,
+                temperature=settings.llm_temperature_creative,
                 extra_body=extra_body,
                 label="deep_research",
             )

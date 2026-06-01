@@ -73,7 +73,11 @@ class RunTrace:
             snap = {}
         self.settings = _redact(snap)
         self.model = snap.get("llm_model", "")
-        self.llm_temperature = snap.get("llm_temperature")
+        self.llm_temperature = {
+            "precise": snap.get("llm_temperature_precise"),
+            "creative": snap.get("llm_temperature_creative"),
+            "deliberation": snap.get("llm_temperature_deliberation"),
+        }
         self.llm_seed = snap.get("llm_seed")
 
     def add(self, kind: str, data: dict[str, Any]) -> None:

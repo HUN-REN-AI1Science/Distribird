@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "gemini-3-pro"
 
+    # LLM sampling temperature per task class. Defaults preserve current
+    # behaviour; lower all three toward 0.0 for more deterministic runs.
+    # (Reasoning models ignore temperature and always run at their default.)
+    llm_temperature_precise: float = 0.0  # extraction, relevance judging, validity
+    llm_temperature_creative: float = 0.3  # query generation, enrichment, refinement
+    llm_temperature_deliberation: float = 0.1  # multi-agent deliberation moderator
+
     semantic_scholar_api_key: str = ""
     semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"
 

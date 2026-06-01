@@ -36,7 +36,7 @@ def research_model(domain_context: str, settings: Settings) -> str:
         client,
         settings.llm_model,
         [{"role": "user", "content": prompt}],
-        temperature=0.3,
+        temperature=settings.llm_temperature_creative,
         extra_body=extra_body,
         label="model_research",
     )
@@ -86,7 +86,7 @@ def enrich_parameter(
         client,
         settings.llm_model,
         [{"role": "user", "content": prompt}],
-        temperature=0.3,
+        temperature=settings.llm_temperature_creative,
         label="parameter_enrichment",
     )
 

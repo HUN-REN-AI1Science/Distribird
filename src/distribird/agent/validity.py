@@ -163,7 +163,7 @@ def validity_probe_llm(
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.0,
+            temperature=settings.llm_temperature_precise,
             label="validity_probe",
         )
     except Exception as e:

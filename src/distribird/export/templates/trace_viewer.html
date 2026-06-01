@@ -414,7 +414,7 @@ function renderDeterminism(tr){
   return `<div class="card"><h3>Determinism-relevant signals</h3>
     <div class="row">
       <span class="kv"><b>model</b> ${esc(s.model)}</span>
-      <span class="kv"><b>temperature</b> ${esc(s.temp==null?"LLM default (≠0 ⇒ stochastic)":s.temp)}</span>
+      <span class="kv"><b>temperature</b> ${esc(s.temp==null?"LLM default (≠0 ⇒ stochastic)":(typeof s.temp==="object"?Object.entries(s.temp).map(([k,v])=>`${k}=${v}`).join(", "):s.temp))}</span>
       <span class="kv"><b>seed</b> ${esc(s.seed==null?"none (⇒ stochastic)":s.seed)}</span>
     </div>
     <p class="kv" style="color:var(--muted)">These are the inputs that most affect run-to-run variance.

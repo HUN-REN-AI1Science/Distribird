@@ -510,7 +510,7 @@ async def refine_search_node(state: PipelineState) -> dict[str, object]:
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=settings.llm_temperature_creative,
             label="search_refinement",
         )
     except Exception as e:
@@ -637,7 +637,7 @@ async def cross_enrich_node(state: PipelineState) -> dict[str, object]:
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=settings.llm_temperature_creative,
             label="cross_enrichment_queries",
         )
         if isinstance(raw, list):

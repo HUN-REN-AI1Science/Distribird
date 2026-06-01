@@ -19,12 +19,30 @@ def _sample_trace() -> dict:
         "llm_temperature": 0.0,
         "llm_seed": 7,
         "events": [
-            {"seq": 1, "kind": "search_request", "node": "search", "rel_ts": 0.1,
-             "data": {"source": "semantic_scholar", "query": "perm", "n_raw": 5,
-                      "n_after_oa_filter": 2, "results": []}},
-            {"seq": 2, "kind": "fitting_candidates", "node": "synthesize", "rel_ts": 1.0,
-             "data": {"chosen_family": "lognormal", "delta_aic_to_second": 3.2,
-                      "candidates": [{"family": "lognormal", "aic": 10.0}]}},
+            {
+                "seq": 1,
+                "kind": "search_request",
+                "node": "search",
+                "rel_ts": 0.1,
+                "data": {
+                    "source": "semantic_scholar",
+                    "query": "perm",
+                    "n_raw": 5,
+                    "n_after_oa_filter": 2,
+                    "results": [],
+                },
+            },
+            {
+                "seq": 2,
+                "kind": "fitting_candidates",
+                "node": "synthesize",
+                "rel_ts": 1.0,
+                "data": {
+                    "chosen_family": "lognormal",
+                    "delta_aic_to_second": 3.2,
+                    "candidates": [{"family": "lognormal", "aic": 10.0}],
+                },
+            },
         ],
         "node_events": [{"node": "search", "duration_s": 0.1, "summary": {}}],
     }

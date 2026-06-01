@@ -99,7 +99,7 @@ class WebSearchAgent:
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=settings.llm_temperature_creative,
             label="web_search_agent",
         )
 
