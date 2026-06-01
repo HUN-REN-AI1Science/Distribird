@@ -223,6 +223,11 @@ class PipelineResult(BaseModel):
         default=None,
         description="Whether the parameter is empirically measurable (None = not assessed)",
     )
+    token_usage: dict[str, int] = Field(
+        default_factory=dict,
+        description="LLM token totals across all calls for this parameter "
+        "(keys: prompt_tokens, completion_tokens, total_tokens, n_calls)",
+    )
 
 
 class BatchResult(BaseModel):

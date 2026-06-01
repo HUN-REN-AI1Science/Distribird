@@ -429,6 +429,50 @@ def generate_search_queries(
     return fallback
 
 
+def _is_deep_research_model(model: str) -> bool:
+    """OpenAI's dedicated deep-research models are served only via the Responses
+    API with a web-search tool — they reject /chat/completions calls."""
+    return "deep-research" in (model or "").lower()
+
+
+def _deep_research_via_responses(client, model: str, prompt: str,
+                                 parameter: ParameterInput) -> object:
+    """Call a deep-research model through the Responses API with web search,
+    then parse the model's text output as JSON. Returns the parsed object."""
+    from distribird.agent.extract import _strip_code_fences
+
+    instructions = (
+        "You are a scientific literature research assistant. Use web search to "
+        "find real, citable papers that report numeric values for the requested "
+        "parameter. Respond with ONLY a JSON array — no markdown, no prose."
+    )
+    resp = client.responses.create(
+        model=model,
+        instructions=instructions,
+        input=prompt,
+        tools=[{"type": "web_search_preview"}],
+    )
+    # output_text aggregates the final assistant text across the response items.
+    text = getattr(resp, "output_text", None) or ""
+    if not text:
+        # Fallback: walk the structured output for any text content.
+        chunks = []
+        for item in getattr(resp, "output", []) or []:
+            for c in getattr(item, "content", []) or []:
+                t = getattr(c, "text", None)
+                if t:
+                    chunks.append(t)
+        text = "\n".join(chunks)
+    text = _strip_code_fences(text)
+    logger.info("[LLM:deep_research] param=%r responses-API chars=%d",
+                parameter.name, len(text))
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        logger.warning("[LLM:deep_research] could not parse JSON from responses output")
+        return []
+
+
 async def llm_deep_research(
     parameter: ParameterInput,
     settings: Settings,
@@ -462,13 +506,18 @@ async def llm_deep_research(
     )
 
     try:
-        papers_data = _llm_json_call(
-            client,
-            model,
-            [{"role": "user", "content": prompt}],
-            temperature=0.3,
-            extra_body=extra_body,
-        )
+        if _is_deep_research_model(model):
+            # OpenAI deep-research models (o3-deep-research, o4-mini-deep-research)
+            # are only served via the Responses API and require a web-search tool.
+            papers_data = _deep_research_via_responses(client, model, prompt, parameter)
+        else:
+            papers_data = _llm_json_call(
+                client,
+                model,
+                [{"role": "user", "content": prompt}],
+                temperature=0.3,
+                extra_body=extra_body,
+            )
 
         if not isinstance(papers_data, list):
             logger.warning("[LLM:deep_research] response not a list, returning empty")

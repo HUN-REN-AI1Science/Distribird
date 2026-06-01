@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import re
@@ -18,6 +19,47 @@ from distribird.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Per-task token accumulator. `run_parameter_graph` calls `reset_token_accumulator()`
+# at the start of each parameter's pipeline; every `_llm_json_call` invocation
+# inside (including subtasks, since asyncio copies ContextVars per task) adds
+# its response.usage into the dict. The dict reference is preserved so the
+# graph can read final totals back without another ContextVar lookup.
+_token_accumulator: contextvars.ContextVar[dict[str, int] | None] = contextvars.ContextVar(
+    "distribird_token_accumulator", default=None
+)
+
+
+def reset_token_accumulator() -> dict[str, int]:
+    """Install a fresh per-task token accumulator.
+
+    Returns the dict (mutated in place by `_record_usage`).
+    """
+    acc: dict[str, int] = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "n_calls": 0,
+    }
+    _token_accumulator.set(acc)
+    return acc
+
+
+def _record_usage(response: object) -> None:
+    """Record one LLM response's `usage` block into the current task's accumulator.
+
+    No-op if no accumulator is installed.
+    """
+    acc = _token_accumulator.get()
+    if acc is None:
+        return
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return
+    acc["prompt_tokens"] += int(getattr(usage, "prompt_tokens", 0) or 0)
+    acc["completion_tokens"] += int(getattr(usage, "completion_tokens", 0) or 0)
+    acc["total_tokens"] += int(getattr(usage, "total_tokens", 0) or 0)
+    acc["n_calls"] += 1
 
 
 def _strip_code_fences(text: str) -> str:
@@ -98,6 +140,14 @@ _JSON_SYSTEM_MSG = {
 }
 
 
+def _is_reasoning_model(model: str) -> bool:
+    """GPT-5 / o-series reasoning models reject `temperature != 1` and
+    `web_search_options`. Detect by name prefix so callers can keep passing
+    their preferred temperature for non-reasoning models."""
+    m = (model or "").lower()
+    return m.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
 def _llm_json_call(
     client: OpenAI,
     model: str,
@@ -114,13 +164,21 @@ def _llm_json_call(
     # Prepend system message to enforce JSON-only output
     full_messages = [_JSON_SYSTEM_MSG] + list(messages)
 
+    reasoning = _is_reasoning_model(model)
+    if reasoning and isinstance(extra_body, dict) and "web_search_options" in extra_body:
+        filtered = {k: v for k, v in extra_body.items() if k != "web_search_options"}
+        extra_body = filtered or None
+
     for attempt in range(max_retries + 1):
-        response = client.chat.completions.create(
-            model=model,
-            messages=full_messages,  # type: ignore[arg-type]
-            temperature=temperature,
-            extra_body=extra_body,
-        )
+        create_kwargs: dict[str, object] = {
+            "model": model,
+            "messages": full_messages,
+            "extra_body": extra_body,
+        }
+        if not reasoning:
+            create_kwargs["temperature"] = temperature
+        response = client.chat.completions.create(**create_kwargs)  # type: ignore[arg-type]
+        _record_usage(response)
         text = response.choices[0].message.content or ""
         text = _strip_code_fences(text)
         try:

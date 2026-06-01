@@ -192,6 +192,10 @@ class TestDeepResearchDedicatedModel:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps(papers_data)))]
         mock_client.chat.completions.create.return_value = mock_response
+        # The default deep-research model is served via the Responses API.
+        mock_responses = MagicMock()
+        mock_responses.output_text = json.dumps(papers_data)
+        mock_client.responses.create.return_value = mock_responses
 
         s = Settings()
         results = await llm_deep_research(parameter, s)
@@ -200,10 +204,9 @@ class TestDeepResearchDedicatedModel:
             base_url=s.deep_research_base_url,
             api_key=s.deep_research_api_key,
         )
-        call_kwargs = mock_client.chat.completions.create.call_args
+        call_kwargs = mock_client.responses.create.call_args
         assert call_kwargs.kwargs["model"] == "o4-mini-deep-research"
-        messages = call_kwargs.kwargs["messages"]
-        user_content = next(m["content"] for m in messages if m["role"] == "user")
+        user_content = call_kwargs.kwargs["input"]
         assert "Search the web" in user_content
         assert len(results) == 1
 
@@ -258,6 +261,10 @@ class TestDeepResearchConfidence:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps(papers_data)))]
         mock_client.chat.completions.create.return_value = mock_response
+        # The default deep-research model is served via the Responses API.
+        mock_responses = MagicMock()
+        mock_responses.output_text = json.dumps(papers_data)
+        mock_client.responses.create.return_value = mock_responses
 
         results = await llm_deep_research(parameter, settings)
         assert len(results) == 3

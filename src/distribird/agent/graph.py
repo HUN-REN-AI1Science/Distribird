@@ -130,6 +130,11 @@ async def run_parameter_graph(
     if settings is None:
         settings = get_settings()
 
+    # Install a token accumulator scoped to this task; every `_llm_json_call`
+    # invocation from this coroutine (and its asyncio subtasks) will add into it.
+    from distribird.agent.extract import reset_token_accumulator
+    token_usage = reset_token_accumulator()
+
     compiled = build_pipeline_graph().compile()
 
     budget = IterationBudget(
@@ -196,4 +201,5 @@ async def run_parameter_graph(
         validity_reason=final_state.get("validity_reason", ""),
         validity_signals=final_state.get("validity_signals", {}),
         is_empirical=final_state.get("is_empirical"),
+        token_usage=dict(token_usage),
     )
