@@ -10,6 +10,7 @@ from distribird.agent.search import (
     _compute_relevance,
     llm_deep_research,
     search_semantic_scholar,
+    stable_relevance_key,
     verify_deep_research_papers,
     verify_paper_doi,
 )
@@ -125,6 +126,37 @@ async def test_search_handles_error(settings):
 
     with pytest.raises(httpx.HTTPStatusError):
         await search_semantic_scholar("test query", settings)
+
+
+class TestStableRelevanceKey:
+    """The ranking key must order identical sets identically, whatever order
+    they arrive in (Semantic Scholar reshuffles equally ranked results)."""
+
+    def _papers(self):
+        # Three papers with the same relevance and year, distinguished only by DOI.
+        return [
+            LiteratureEvidence(title="B", doi="10.1/b", year=2020, relevance_score=0.5),
+            LiteratureEvidence(title="A", doi="10.1/a", year=2020, relevance_score=0.5),
+            LiteratureEvidence(title="C", doi="10.1/c", year=2020, relevance_score=0.5),
+        ]
+
+    def test_tiebreak_is_order_independent(self):
+        papers = self._papers()
+        forward = sorted(papers, key=stable_relevance_key)
+        reverse = sorted(list(reversed(papers)), key=stable_relevance_key)
+        assert [p.doi for p in forward] == [p.doi for p in reverse]
+        # Tiebreak is DOI ascending.
+        assert [p.doi for p in forward] == ["10.1/a", "10.1/b", "10.1/c"]
+
+    def test_relevance_then_year_dominate(self):
+        papers = [
+            LiteratureEvidence(title="low", doi="10.1/z", year=2024, relevance_score=0.1),
+            LiteratureEvidence(title="high", doi="10.1/y", year=2000, relevance_score=0.9),
+            LiteratureEvidence(title="mid-new", doi="10.1/x", year=2024, relevance_score=0.5),
+            LiteratureEvidence(title="mid-old", doi="10.1/w", year=2010, relevance_score=0.5),
+        ]
+        ordered = sorted(papers, key=stable_relevance_key)
+        assert [p.title for p in ordered] == ["high", "mid-new", "mid-old", "low"]
 
 
 class TestComputeRelevance:

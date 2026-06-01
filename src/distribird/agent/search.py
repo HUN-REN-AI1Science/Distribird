@@ -171,6 +171,24 @@ async def search_semantic_scholar(
     return papers[:limit]
 
 
+def stable_relevance_key(paper: LiteratureEvidence) -> tuple[float, int, str, str]:
+    """Deterministic ranking key for search results.
+
+    Sorts by relevance (high first), then year (recent first), then DOI and
+    title as a final tiebreaker. The tiebreaker is what makes ordering fixed:
+    without it, equally ranked papers keep the order the upstream API returned
+    them in, which Semantic Scholar reshuffles between identical queries.
+    Sort ascending with this key (numeric fields are negated) — do not pass
+    ``reverse=True``, which would also reverse the string tiebreakers.
+    """
+    return (
+        -paper.relevance_score,
+        -(paper.year or 0),
+        (paper.doi or "").lower(),
+        paper.title or "",
+    )
+
+
 async def search_all_queries(
     queries: list[str],
     settings: Settings,
@@ -195,11 +213,9 @@ async def search_all_queries(
         except Exception as e:
             logger.warning("[S2:search_all] query failed: %r error=%s", query, e)
 
-    # Sort by relevance (citation-based) and recency
-    all_papers.sort(
-        key=lambda p: (p.relevance_score, p.year or 0),
-        reverse=True,
-    )
+    # Sort by relevance (citation-based) and recency, with a deterministic
+    # DOI/title tiebreaker so identical result sets always order identically.
+    all_papers.sort(key=stable_relevance_key)
     result = all_papers[: settings.max_papers_per_query]
     logger.info(
         "[S2:search_all] done total_unique=%d returned=%d",
@@ -455,7 +471,10 @@ def generate_search_queries(
             client,
             settings.llm_model,
             [{"role": "user", "content": prompt}],
-            temperature=settings.llm_temperature_creative,
+            # Query generation runs at the precise (0.0) tier: at a creative
+            # temperature it produces a near-disjoint query set on each run, which
+            # is the dominant source of search non-determinism.
+            temperature=settings.llm_temperature_precise,
             label="query_generation",
         )
         if isinstance(queries, list):

@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     # LLM sampling temperature per task class. Defaults preserve current
     # behaviour; lower all three toward 0.0 for more deterministic runs.
     # (Reasoning models ignore temperature and always run at their default.)
-    llm_temperature_precise: float = 0.0  # extraction, relevance judging, validity
-    llm_temperature_creative: float = 0.3  # query generation, enrichment, refinement
+    llm_temperature_precise: float = 0.0  # query generation, extraction, relevance, validity
+    llm_temperature_creative: float = 0.3  # enrichment, refinement
     llm_temperature_deliberation: float = 0.1  # multi-agent deliberation moderator
 
     semantic_scholar_api_key: str = ""

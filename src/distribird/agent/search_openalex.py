@@ -8,7 +8,7 @@ import httpx
 
 from distribird.agent import diagnostics
 from distribird.agent.ratelimit import get_limiter, rate_limited_request
-from distribird.agent.search import _compute_relevance
+from distribird.agent.search import _compute_relevance, stable_relevance_key
 from distribird.config import Settings
 from distribird.models import LiteratureEvidence
 
@@ -164,10 +164,7 @@ async def search_openalex_all_queries(
         except Exception as e:
             logger.warning("[OpenAlex:search_all] query failed: %r error=%s", query, e)
 
-    all_papers.sort(
-        key=lambda p: (p.relevance_score, p.year or 0),
-        reverse=True,
-    )
+    all_papers.sort(key=stable_relevance_key)
     result = all_papers[: settings.max_papers_per_query]
     logger.info(
         "[OpenAlex:search_all] done total_unique=%d returned=%d",

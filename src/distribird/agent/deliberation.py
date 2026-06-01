@@ -17,6 +17,7 @@ from distribird.agent.agents import (
 )
 from distribird.agent.extract import _llm_json_call
 from distribird.agent.prompts import DELIBERATION_MODERATOR
+from distribird.agent.search import stable_relevance_key
 from distribird.config import Settings
 from distribird.models import (
     AgentFinding,
@@ -279,11 +280,11 @@ async def deliberate(
             "[deliberation] moderator LLM failed: %s, falling back to verified papers",
             e,
         )
-        # Fallback: include all verified papers sorted by relevance
+        # Fallback: include all verified papers sorted by relevance, with the
+        # same deterministic tiebreaker the search aggregators use.
         verified_papers = sorted(
             [p for p in all_papers if p.verified],
-            key=lambda p: p.relevance_score,
-            reverse=True,
+            key=stable_relevance_key,
         )
         return DeliberationResult(
             consensus_papers=verified_papers,
