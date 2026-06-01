@@ -1,7 +1,9 @@
 """Browser-side session persistence via localStorage.
 
-Stores sidebar settings and login status as a JSON blob so the left
-panel survives page reloads and sleep/wake cycles.
+Stores sidebar settings, login status, and the entered parameter rows as a JSON
+blob so the left panel and the user's inputs survive page reloads and sleep/wake
+cycles. (Generated results are not persisted — they can be large and are
+regenerated on the next run.)
 
 Security note: API keys stored in localStorage are accessible to any JS
 running on the same origin. Acceptable for a single-user local tool.
@@ -39,6 +41,13 @@ _SIMPLE_KEYS: list[str] = [
     "_docs_shown",
 ]
 
+# Run inputs persisted so the entered parameters survive a reload (results
+# themselves are not persisted — they can be large and are regenerated on the
+# next run). next_id is kept so restored rows don't collide with new ones.
+_RUN_KEYS: list[str] = ["params", "next_id"]
+
+_PERSISTED_KEYS: list[str] = _SIMPLE_KEYS + _RUN_KEYS
+
 
 def hydrate_session_state() -> object:
     """Restore session state from localStorage on first render.
@@ -62,8 +71,8 @@ def hydrate_session_state() -> object:
         raw = stored[STORAGE_KEY]
         blob: dict[str, Any] = json.loads(raw) if isinstance(raw, str) else raw
 
-        # Restore simple keys
-        for key in _SIMPLE_KEYS:
+        # Restore persisted keys (sidebar settings + entered parameters)
+        for key in _PERSISTED_KEYS:
             if key in blob:
                 st.session_state[key] = blob[key]
 
@@ -82,7 +91,7 @@ def save_session_state(ls: object) -> None:
     try:
         blob: dict[str, Any] = {}
 
-        for key in _SIMPLE_KEYS:
+        for key in _PERSISTED_KEYS:
             if key in st.session_state:
                 blob[key] = st.session_state[key]
 

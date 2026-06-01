@@ -173,7 +173,9 @@ def post_message(
     references: list[str] | None = None,
 ) -> BlackboardMessage:
     """Append a message to the blackboard."""
-    bb = state.get("blackboard", [])
+    # setdefault (not get) so the appended-to list is the one stored in state,
+    # even on the first post before the channel is initialised.
+    bb = state.setdefault("blackboard", [])
     iteration = state.get("budget", IterationBudget()).search_refinement_used
     msg = BlackboardMessage(
         sender=sender,
@@ -218,7 +220,10 @@ def update_quality(state: PipelineState) -> QualityMetrics:
             if ev.reported_value is not None:
                 all_values.append(ev.reported_value)
             ctx = ev.context or ""
-            if "high" in ctx.lower():
+            # Match the explicit "high confidence" marker that consensus
+            # extraction writes, not the bare word "high" (which false-matches
+            # "highly variable", "highland", etc.).
+            if "high confidence" in ctx.lower():
                 high_conf += 1
 
     n_vals = len(all_values)

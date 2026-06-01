@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_api_key: str = ""
     llm_model: str = "gemini-3-pro"
+    # Optional integer seed forwarded to the OpenAI-compatible API (`seed`
+    # request field) for reproducible sampling. None = omit the field (default,
+    # behaviour-neutral); pinning it aids determinism alongside the temperatures.
+    llm_seed: int | None = None
 
     # LLM sampling temperature per task class. Defaults preserve current
     # behaviour; lower all three toward 0.0 for more deterministic runs.
@@ -30,6 +34,10 @@ class Settings(BaseSettings):
 
     max_papers_per_query: int = Field(default=20, ge=1, le=100)
     max_search_queries: int = Field(default=5, ge=1, le=20)
+    # Cap on the *aggregated, deduplicated* corpus kept after running all
+    # queries (bounds downstream full-text fetch + extraction cost). Distinct
+    # from max_papers_per_query, which limits each individual query.
+    max_papers_total: int = Field(default=50, ge=1)
     extraction_timeout: float = Field(default=30.0, gt=0.0)
 
     # Full-text fetch fallbacks, in order of cost, tried when a paper's primary
@@ -107,6 +115,12 @@ class Settings(BaseSettings):
 
     auth_username: str = "demo"
     auth_password: str = "changeme"
+
+    # API server bind address. Default preserves container-friendly behaviour
+    # (0.0.0.0); `distribird.api.main` warns when binding a non-loopback host
+    # while auth is still at the insecure defaults.
+    api_host: str = "0.0.0.0"
+    api_port: int = Field(default=8000, ge=1, le=65535)
 
 
 def get_settings() -> Settings:

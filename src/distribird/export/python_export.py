@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from distribird.export._util import comment_safe, safe_identifier
 from distribird.models import BatchResult, DistributionFamily, FittedPrior, PipelineResult
 
 
 def _prior_to_python(prior: FittedPrior) -> str:
     """Generate Python/scipy code for sampling from a fitted prior."""
     p = prior.params
-    name = prior.parameter_name.replace(" ", "_").replace("-", "_")
+    name = safe_identifier(prior.parameter_name)
 
     if prior.family == DistributionFamily.NORMAL:
         return f"{name} = stats.norm(loc={p['mu']}, scale={p['sigma']})"
@@ -57,12 +58,14 @@ def export_python(batch: BatchResult, n_samples: int = 10000) -> str:
 
     for result in batch.results:
         prior = result.prior
-        lines.append(f"# {result.parameter.name}: {prior.confidence.value} confidence")
-        lines.append(f"# {prior.reason}")
+        lines.append(
+            f"# {comment_safe(result.parameter.name)}: {prior.confidence.value} confidence"
+        )
+        lines.append(f"# {comment_safe(prior.reason)}")
         if prior.evidence:
             for e in prior.evidence:
                 doi_str = f" DOI: {e.doi}" if e.doi else ""
-                lines.append(f"#   Source: {e.title} ({e.year}){doi_str}")
+                lines.append(f"#   Source: {comment_safe(e.title)} ({e.year}){doi_str}")
         lines.append(_prior_to_python(prior))
         lines.append("")
 

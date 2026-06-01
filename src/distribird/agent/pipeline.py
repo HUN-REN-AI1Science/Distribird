@@ -109,12 +109,22 @@ async def run_batch(
             if tracker:
                 await tracker.on_start(param.name)
 
+            # Progress callbacks are scheduled as tasks (the callback is sync and
+            # cannot await). Keep strong references so they are not garbage-
+            # collected mid-flight, and drain them at the end so exceptions are
+            # observed and a late update can't clobber the final DONE status.
+            progress_tasks: set[asyncio.Task[None]] = set()
+
             def _on_node(node_name: str, state: dict[str, Any]) -> None:
                 if tracker:
-                    asyncio.create_task(tracker.on_node(param.name, node_name, state))
+                    task = asyncio.create_task(tracker.on_node(param.name, node_name, state))
+                    progress_tasks.add(task)
+                    task.add_done_callback(progress_tasks.discard)
 
             try:
                 result = await run_parameter(param, settings, _on_node)
+                if progress_tasks:
+                    await asyncio.gather(*progress_tasks, return_exceptions=True)
                 if tracker:
                     await tracker.on_done(param.name, result)
                 return result

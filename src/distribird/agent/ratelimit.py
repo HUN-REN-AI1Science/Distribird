@@ -39,11 +39,24 @@ class AsyncRateLimiter:
         self.burst = burst
         self._interval = 1.0 / rate
         self._next_allowed = time.monotonic()
-        self._lock = asyncio.Lock()
+        # The lock is bound lazily to whichever event loop is running when it is
+        # first awaited, and rebuilt if the running loop changes. Callers such as
+        # the Streamlit UI run a fresh ``asyncio.run()`` loop per parameter; a
+        # single Lock created here would stay bound to the first loop and raise
+        # "is bound to a different event loop" on every later parameter.
+        self._lock: asyncio.Lock | None = None
+        self._lock_loop: asyncio.AbstractEventLoop | None = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:
+            self._lock = asyncio.Lock()
+            self._lock_loop = loop
+        return self._lock
 
     async def acquire(self) -> None:
         """Wait until the next request slot, then reserve it."""
-        async with self._lock:
+        async with self._get_lock():
             now = time.monotonic()
             if now < self._next_allowed:
                 await asyncio.sleep(self._next_allowed - now)

@@ -42,6 +42,28 @@ def _log_likelihood(logpdf: np.ndarray, weights: np.ndarray | None) -> float:
     return float(np.sum(weights * logpdf)) if weights is not None else float(np.sum(logpdf))
 
 
+def _truncation_bounds(
+    center: float, spread: float, lower_bound: float | None, upper_bound: float | None
+) -> tuple[float, float]:
+    """Return ``(lb, ub)`` for a truncated normal, guaranteeing ``lb < ub``.
+
+    Auto-computed open ends are anchored to ``center`` clamped inside any fixed
+    bound, so a value lying outside a user/enrichment-inferred bound can never
+    invert the support (``a_std > b_std``), which otherwise yields NaN
+    mean/ppf in ``model_check`` and NaN in the JSON/plot outputs.
+    """
+    c = center
+    if lower_bound is not None:
+        c = max(c, lower_bound)
+    if upper_bound is not None:
+        c = min(c, upper_bound)
+    lb = lower_bound if lower_bound is not None else c - 10 * spread
+    ub = upper_bound if upper_bound is not None else c + 10 * spread
+    if ub <= lb:
+        ub = lb + max(abs(spread), 1.0)
+    return lb, ub
+
+
 def _fit_truncated_normal(
     values: np.ndarray, lower: float, upper: float, weights: np.ndarray | None = None
 ) -> FitCandidate | None:
@@ -144,7 +166,12 @@ def _fit_beta(
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             a, b, loc, scale = stats.beta.fit(scaled, floc=0, fscale=1)
-        logpdf = stats.beta.logpdf(scaled, a, b, loc=0, scale=1)
+        # Evaluate the log-likelihood on the RAW data scale (loc=lower,
+        # scale=upper-lower) so it includes the change-of-variables Jacobian and
+        # is comparable to the other families' AICs (all on the raw values).
+        # Scoring on the [0,1]-scaled data instead omitted -n*log(upper-lower)
+        # and systematically over/under-selected Beta by the range width.
+        logpdf = stats.beta.logpdf(values, a, b, loc=lower, scale=upper - lower)
         ll = _log_likelihood(logpdf, weights)
         if not np.isfinite(ll):
             return None
@@ -250,8 +277,7 @@ def moment_match_normal(
         range_floor = max(1.0, abs(mu) * 0.25)
     sigma = max(sigma * widen_factor, abs(mu) * 0.05, range_floor)
 
-    lb = lower_bound if lower_bound is not None else mu - 10 * sigma
-    ub = upper_bound if upper_bound is not None else mu + 10 * sigma
+    lb, ub = _truncation_bounds(mu, sigma, lower_bound, upper_bound)
 
     a_std = (lb - mu) / sigma
     b_std = (ub - mu) / sigma
@@ -317,8 +343,7 @@ def values_to_prior(
             spread = unc
         else:
             spread = abs(center) * 0.5 if abs(center) > 1e-12 else 1.0
-        lb = lower_bound if lower_bound is not None else center - 10 * spread
-        ub = upper_bound if upper_bound is not None else center + 10 * spread
+        lb, ub = _truncation_bounds(center, spread, lower_bound, upper_bound)
         return FittedPrior(
             parameter_name=parameter_name,
             family=DistributionFamily.TRUNCATED_NORMAL,

@@ -211,7 +211,7 @@ class TestCredibleCoverage:
 
     def test_monotonic(self):
         dist = stats.norm(loc=0, scale=1)
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.normal(0, 1, size=1000)
         cov = _compute_credible_coverage(dist, values)
         assert cov.ci_50 <= cov.ci_90 <= cov.ci_95
@@ -226,7 +226,7 @@ class TestCdfDeviation:
     def test_perfect_fit(self):
         # Large sample from the true distribution → small deviation
         dist = stats.norm(loc=0, scale=1)
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.normal(0, 1, size=10000)
         dev = _compute_cdf_deviation(dist, values)
         assert dev < 0.02
@@ -248,7 +248,7 @@ class TestCheckModel:
     def test_normal_good_fit(self):
         """Data drawn from the same normal → high KS p-value."""
         prior = _make_prior(DistributionFamily.NORMAL, {"mu": 5.0, "sigma": 2.0})
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.normal(5.0, 2.0, size=50).tolist()
         mc = check_model(prior, values)
         assert mc is not None
@@ -278,7 +278,7 @@ class TestCheckModel:
 
     def test_gamma(self):
         prior = _make_prior(DistributionFamily.GAMMA, {"alpha": 3.0, "scale": 2.0})
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = stats.gamma.rvs(a=3.0, scale=2.0, size=30, random_state=rng).tolist()
         mc = check_model(prior, values)
         assert mc is not None
@@ -297,7 +297,7 @@ class TestCheckModel:
 
     def test_lognormal(self):
         prior = _make_prior(DistributionFamily.LOGNORMAL, {"mu": 1.0, "sigma": 0.5})
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = stats.lognorm.rvs(s=0.5, scale=math.exp(1.0), size=40, random_state=rng).tolist()
         mc = check_model(prior, values)
         assert mc is not None
@@ -308,7 +308,7 @@ class TestCheckModel:
             DistributionFamily.BETA,
             {"alpha": 2.0, "beta": 5.0, "lower": 0.0, "upper": 1.0},
         )
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = stats.beta.rvs(a=2.0, b=5.0, size=30, random_state=rng).tolist()
         mc = check_model(prior, values)
         assert mc is not None
@@ -323,7 +323,7 @@ class TestCheckModel:
 
     def test_coverage_monotonic(self):
         prior = _make_prior(DistributionFamily.NORMAL, {"mu": 0.0, "sigma": 1.0})
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.normal(0, 1, size=100).tolist()
         mc = check_model(prior, values)
         assert mc is not None

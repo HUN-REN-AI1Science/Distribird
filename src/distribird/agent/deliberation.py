@@ -29,6 +29,30 @@ from distribird.models import (
 logger = logging.getLogger(__name__)
 
 
+def _as_int_list(value: object) -> list[int]:
+    """Coerce a moderator field to a list of ints, dropping anything non-numeric.
+
+    The LLM may return a scalar, null, or strings instead of a list of indices;
+    `[1] + 2` would otherwise raise a TypeError that aborts the whole deliberation.
+    """
+    if not isinstance(value, list):
+        return []
+    out: list[int] = []
+    for x in value:
+        if isinstance(x, bool):
+            continue
+        if isinstance(x, int):
+            out.append(x)
+        elif isinstance(x, float) and x == int(x):
+            out.append(int(x))
+        elif isinstance(x, str):
+            try:
+                out.append(int(x.strip()))
+            except ValueError:
+                continue
+    return out
+
+
 async def run_source_agents(
     parameter: ParameterInput,
     queries: list[str],
@@ -85,13 +109,24 @@ def _deduplicate_across_agents(
     """
     all_papers: list[LiteratureEvidence] = []
     paper_sources: dict[int, list[str]] = {}
-    doi_to_index: dict[str, int] = {}
+    key_to_index: dict[str, int] = {}
 
     for finding in findings:
         for paper in finding.papers:
+            # Merge by DOI when present; otherwise fall back to a normalized
+            # title so the same DOI-less paper (common for web/LLM findings) is
+            # not double-counted across agents. Papers with neither DOI nor a
+            # title get no merge key and stay distinct.
             doi = paper.doi.strip().lower() if paper.doi else None
-            if doi and doi in doi_to_index:
-                idx = doi_to_index[doi]
+            title = (paper.title or "").strip().lower()
+            if doi:
+                key: str | None = f"doi:{doi}"
+            elif title:
+                key = f"title:{title}"
+            else:
+                key = None
+            if key is not None and key in key_to_index:
+                idx = key_to_index[key]
                 paper_sources[idx].append(finding.agent_name)
                 # Prefer verified metadata
                 if paper.verified and not all_papers[idx].verified:
@@ -100,8 +135,8 @@ def _deduplicate_across_agents(
                 idx = len(all_papers)
                 all_papers.append(paper)
                 paper_sources[idx] = [finding.agent_name]
-                if doi:
-                    doi_to_index[doi] = idx
+                if key is not None:
+                    key_to_index[key] = idx
 
     return all_papers, paper_sources
 
@@ -227,15 +262,18 @@ async def deliberate(
         if not isinstance(result, dict):
             raise ValueError("Moderator LLM returned non-dict response")
 
-        raw_selected = result.get("selected_papers", [])
-        raw_excluded = result.get("excluded_papers", [])
+        raw_selected = _as_int_list(result.get("selected_papers"))
+        raw_excluded = _as_int_list(result.get("excluded_papers"))
         rationale = result.get("rationale", "")
         warnings = result.get("warnings", [])
 
-        # The prompt uses 1-based numbering; convert to 0-based for indexing.
-        # Accept both 0-based and 1-based by checking if max index > len.
-        max_idx = max(raw_selected + raw_excluded, default=0)
-        offset = 1 if max_idx > 0 and max_idx >= len(all_papers) else 0
+        # The prompt numbers papers 1-based ([1]..[N]). A 1-based list never
+        # contains 0, so treat the moderator's indices as 0-based ONLY if a 0
+        # appears; otherwise honour the 1-based contract. (The old heuristic —
+        # "1-based iff the max index reaches N" — silently picked the wrong,
+        # off-by-one papers whenever the top-numbered paper wasn't selected.)
+        all_idx = raw_selected + raw_excluded
+        offset = 0 if (all_idx and min(all_idx) == 0) else 1
         selected_indices = [i - offset for i in raw_selected]
         excluded_indices = [i - offset for i in raw_excluded]
 

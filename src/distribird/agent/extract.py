@@ -32,6 +32,25 @@ _token_accumulator: contextvars.ContextVar[dict[str, int] | None] = contextvars.
     "distribird_token_accumulator", default=None
 )
 
+# Per-task LLM seed, installed by ``run_parameter_graph``. When set (not None),
+# every ``_llm_json_call`` forwards it to the API as the ``seed`` request field
+# for reproducible sampling. Mirrors the token-accumulator contextvar pattern so
+# the seed need not be threaded through every call site.
+_llm_seed: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "distribird_llm_seed", default=None
+)
+
+
+def set_llm_seed(seed: int | None) -> None:
+    """Install the per-task LLM seed (None disables seeding)."""
+    _llm_seed.set(seed)
+
+
+def get_call_count() -> int:
+    """Total LLM calls recorded into the current task's accumulator (0 if none)."""
+    acc = _token_accumulator.get()
+    return acc["n_calls"] if acc else 0
+
 
 def reset_token_accumulator() -> dict[str, int]:
     """Install a fresh per-task token accumulator.
@@ -221,6 +240,9 @@ def _llm_json_call(
         }
         if not reasoning:
             create_kwargs["temperature"] = temperature
+        seed = _llm_seed.get()
+        if seed is not None:
+            create_kwargs["seed"] = seed
         response = client.chat.completions.create(**create_kwargs)  # type: ignore[call-overload]
         _record_usage(response)
         usage = _usage_dict(response) if tracing else {}
@@ -356,8 +378,16 @@ def _parse_extracted_items(
     constraint: ConstraintSpec,
     paper_title: str,
     enrichment: EnrichedContext | None = None,
+    attach_source_url: bool = False,
 ) -> list[ExtractedValue]:
-    """Parse raw JSON items into ExtractedValue list with bounds and plausibility checking."""
+    """Parse raw JSON items into ExtractedValue list with bounds and plausibility checking.
+
+    When ``attach_source_url`` is True, each accepted value gets the originating
+    item's ``source_url`` appended to its context. This is done inside the loop
+    where the raw item and the value are paired, so it stays correct even though
+    rejected items make the output shorter than ``raw`` (a positional zip on the
+    filtered list would mis-pair URLs to values).
+    """
     values = []
     rejected: list[dict[str, object]] = []
     for item in raw:
@@ -367,9 +397,11 @@ def _parse_extracted_items(
             reported_value=_parse_number(item.get("reported_value")),
             reported_range=_parse_range(item.get("reported_range")),
             uncertainty=_parse_number(item.get("uncertainty")),
-            sample_size=item.get("sample_size"),
-            context=item.get("context", ""),
+            sample_size=_parse_int(item.get("sample_size")),
+            context=item.get("context") or "",
         )
+        if attach_source_url and item.get("source_url"):
+            ev.context = f"{ev.context} [source: {item['source_url']}]".strip()
         if not _passes_bounds_check(ev, constraint):
             logger.info(
                 "[LLM:extract] excluded out-of-bounds value=%s paper=%r",
@@ -495,8 +527,11 @@ def extract_values_web_assisted(
 
     constraint = parameter.constraints
 
-    # Sort by relevance and cap
-    sorted_papers = sorted(papers, key=lambda p: p.relevance_score, reverse=True)
+    # Sort by relevance and cap (deterministic tiebreaker so the selected set is
+    # stable across runs).
+    from distribird.agent.search import stable_relevance_key
+
+    sorted_papers = sorted(papers, key=stable_relevance_key)
     selected = sorted_papers[:max_papers]
 
     logger.info(
@@ -554,12 +589,10 @@ def extract_values_web_assisted(
             paper_raw = raw.get(str(i), [])
             if not isinstance(paper_raw, list):
                 continue
-            values = _parse_extracted_items(paper_raw, constraint, paper.title, enrichment)
+            values = _parse_extracted_items(
+                paper_raw, constraint, paper.title, enrichment, attach_source_url=True
+            )
             if values:
-                # Store source_url in context if provided
-                for item_raw, val in zip(paper_raw, values):
-                    if isinstance(item_raw, dict) and item_raw.get("source_url"):
-                        val.context = f"{val.context} [source: {item_raw['source_url']}]"
                 paper.extracted_values = values
                 papers_with_new_values.append(paper)
 
@@ -719,6 +752,26 @@ def _parse_number(raw: object) -> float | None:
         nums = re.findall(r"[-+]?\d*\.?\d+", raw)
         if nums:
             return float(nums[0])
+    return None
+
+
+def _parse_int(raw: object) -> int | None:
+    """Coerce an LLM-provided sample size to an int, or None.
+
+    Tolerates floats (36.0), strings ("n=36", "approximately 30"), and junk.
+    Passing the raw value straight to the Pydantic ``int`` field would raise a
+    ValidationError (propagating out of extraction) for anything non-int.
+    """
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(round(raw)) if raw == raw else None  # reject NaN
+    if isinstance(raw, str):
+        nums = re.findall(r"\d+", raw)
+        if nums:
+            return int(nums[0])
     return None
 
 

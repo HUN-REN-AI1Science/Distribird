@@ -164,7 +164,12 @@ def check_model(prior: FittedPrior, values: list[float]) -> ModelCheckResult | N
     ci_lower = float(dist.ppf(0.025))
     ci_upper = float(dist.ppf(0.975))
 
-    # KS test
+    # KS test. NOTE: when the prior's parameters were estimated from `values`
+    # (the usual pipeline case), this analytic p-value is anti-conservative
+    # (a Lilliefors/parametric-bootstrap correction would be needed). check_model
+    # is generic and can't tell whether its params were fit to these values, so
+    # we report the standard statistic/p-value and document the caveat rather
+    # than mis-applying a correction when they were not.
     ks_stat, ks_p = stats.kstest(arr, dist.cdf)
 
     # Log-likelihood

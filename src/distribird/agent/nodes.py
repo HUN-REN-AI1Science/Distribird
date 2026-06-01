@@ -8,7 +8,9 @@ import time
 from collections.abc import Awaitable, Callable
 
 from distribird.agent import diagnostics
+from distribird.agent.extract import get_call_count
 from distribird.agent.llm_client import get_client
+from distribird.agent.search import stable_relevance_key
 from distribird.agent.state import (
     IterationBudget,
     MessageKind,
@@ -122,7 +124,7 @@ async def search_node(state: PipelineState, settings: Settings) -> dict[str, obj
     parameter = state["parameter"]
     queries = state.get("search_queries", [])
     enrichment = state.get("enrichment")
-    blackboard = list(state.get("blackboard", []))
+    blackboard = state.setdefault("blackboard", [])
     warnings = list(state.get("warnings", []))
 
     if settings.enable_deliberation:
@@ -193,13 +195,18 @@ async def relevance_judge_node(state: PipelineState, settings: Settings) -> dict
     papers = state.get("all_papers", [])
     enrichment = state.get("enrichment")
     budget = state.get("budget", IterationBudget())
+    # Sync the budget to the true LLM-call count (the token accumulator counts
+    # every _llm_json_call: enrich, query-gen, deliberation, extraction, …),
+    # so total_llm_calls_max is an effective ceiling rather than counting only
+    # a handful of nodes.
+    budget.total_llm_calls_used = get_call_count()
 
     n_judged = 0
     if settings.enable_relevance_judgment and papers and budget.has_budget():
         from distribird.agent.search import judge_paper_relevance
 
-        llm_calls = judge_paper_relevance(papers, parameter, settings, enrichment)
-        budget.total_llm_calls_used += llm_calls
+        judge_paper_relevance(papers, parameter, settings, enrichment)
+        budget.total_llm_calls_used = get_call_count()
         n_judged = sum(1 for p in papers if p.relevance_snippet)
 
     n_high = sum(1 for p in papers if p.relevance_score > 0.7)
@@ -259,7 +266,7 @@ async def extract_node(state: PipelineState, settings: Settings) -> dict[str, ob
             enrichment=enrichment,
         )
         if consensus_values:
-            best_paper = max(papers, key=lambda p: p.relevance_score)
+            best_paper = min(papers, key=stable_relevance_key)
             best_paper.extracted_values = consensus_values
             papers_with_values = [best_paper]
             total_values = len(consensus_values)
@@ -294,8 +301,13 @@ async def extract_node(state: PipelineState, settings: Settings) -> dict[str, ob
 @node("quality_gate")
 async def quality_gate_node(state: PipelineState, settings: Settings) -> dict[str, object]:
     quality = update_quality(state)
+    # Refresh the budget from the true call count so route_after_quality_gate
+    # sees the (large) number of extraction calls made since relevance_judge.
+    budget = state.get("budget", IterationBudget())
+    budget.total_llm_calls_used = get_call_count()
     return {
         "quality": quality,
+        "budget": budget,
         "_trace": {
             "n_values": quality.n_total_values,
             "n_papers": quality.n_papers_found,
@@ -374,6 +386,7 @@ async def validity_check_node(state: PipelineState, settings: Settings) -> dict[
 
     probe_called = False
     budget = state.get("budget", IterationBudget())
+    budget.total_llm_calls_used = get_call_count()
 
     if (
         verdict == ParameterValidity.SUSPICIOUS
@@ -387,7 +400,7 @@ async def validity_check_node(state: PipelineState, settings: Settings) -> dict[
             settings=settings,
         )
         probe_called = True
-        budget.consume_llm_call()
+        budget.total_llm_calls_used = get_call_count()
         verdict, reason, is_empirical = apply_probe_verdict(
             passive_verdict=verdict,
             passive_reason=reason,
@@ -426,7 +439,7 @@ async def refine_search_node(state: PipelineState, settings: Settings) -> dict[s
     budget = state.get("budget", IterationBudget())
     all_tried = list(state.get("all_queries_tried", []))
     papers = state.get("all_papers", [])
-    blackboard = list(state.get("blackboard", []))
+    blackboard = state.setdefault("blackboard", [])
     warnings = list(state.get("warnings", []))
 
     from distribird.agent.extract import _llm_json_call
@@ -438,8 +451,7 @@ async def refine_search_node(state: PipelineState, settings: Settings) -> dict[s
 
     high_rel = sorted(
         [p for p in papers if p.relevance_score > 0.7],
-        key=lambda p: p.relevance_score,
-        reverse=True,
+        key=stable_relevance_key,
     )[:5]
     high_rel_text = (
         "\n".join(
@@ -507,7 +519,7 @@ async def refine_search_node(state: PipelineState, settings: Settings) -> dict[s
 
     all_tried.extend(new_queries)
     budget.search_refinement_used += 1
-    budget.total_llm_calls_used += 1
+    budget.total_llm_calls_used = get_call_count()
 
     warnings.append(
         f"Search refinement round {budget.search_refinement_used}: "
@@ -532,14 +544,14 @@ async def cross_enrich_node(state: PipelineState, settings: Settings) -> dict[st
     parameter = state["parameter"]
     papers = state.get("all_papers", [])
     budget = state.get("budget", IterationBudget())
-    blackboard = list(state.get("blackboard", []))
+    blackboard = state.setdefault("blackboard", [])
 
     # --- Snowballing (pure S2 API, no LLM cost) ---
     if settings.enable_snowballing and budget.can_snowball():
         from distribird.agent.search import snowball_papers
 
         existing_dois = {p.doi.strip().lower() for p in papers if p.doi}
-        seed_papers = sorted(papers, key=lambda p: p.relevance_score, reverse=True)
+        seed_papers = sorted(papers, key=stable_relevance_key)
         snowballed = await snowball_papers(
             seed_papers,
             settings,
@@ -557,7 +569,7 @@ async def cross_enrich_node(state: PipelineState, settings: Settings) -> dict[st
     # Identify key papers (high relevance)
     key_papers = [p for p in papers if p.relevance_score > 0.6]
     if not key_papers:
-        key_papers = sorted(papers, key=lambda p: p.relevance_score, reverse=True)[:3]
+        key_papers = sorted(papers, key=stable_relevance_key)[:3]
 
     key_papers_text = "\n".join(
         f"- {p.title} ({p.year}, DOI: {p.doi}): {(p.abstract or '')[:200]}" for p in key_papers
@@ -606,7 +618,7 @@ async def cross_enrich_node(state: PipelineState, settings: Settings) -> dict[st
         add_papers(state, new_papers)
 
     budget.cross_enrichment_used += 1
-    budget.total_llm_calls_used += 1
+    budget.total_llm_calls_used = get_call_count()
 
     return {
         "all_papers": state.get("all_papers", []),
@@ -639,7 +651,7 @@ async def refine_extraction_node(state: PipelineState, settings: Settings) -> di
         for p in papers
         if p.title not in existing_titles and (p.full_text or p.relevance_score > 0.3)
     ]
-    candidates.sort(key=lambda p: p.relevance_score, reverse=True)
+    candidates.sort(key=stable_relevance_key)
 
     n_before = len(papers_with_values)
     if candidates:
@@ -654,7 +666,7 @@ async def refine_extraction_node(state: PipelineState, settings: Settings) -> di
             warnings.append("Used refined extraction on high-relevance papers.")
 
     budget.extraction_refinement_used += 1
-    budget.total_llm_calls_used += 1
+    budget.total_llm_calls_used = get_call_count()
 
     return {
         "papers_with_values": papers_with_values,

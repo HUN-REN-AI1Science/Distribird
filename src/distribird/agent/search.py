@@ -44,8 +44,10 @@ def _compute_relevance(citation_count: int, year: int | None) -> float:
     annual_citations = citation_count / years_since
     score = annual_citations / 10.0
 
-    # Recency bonus: up to +0.2 for papers from the last 5 years
-    age = current_year - pub_year
+    # Recency bonus: up to +0.2 for papers from the last 5 years. Clamp age at 0
+    # so a future-dated paper (preprint/ahead-of-print) gets at most the +0.2 cap
+    # rather than an inflated bonus from a negative age.
+    age = max(0, current_year - pub_year)
     if age < 5:
         score += 0.2 * (1 - age / 5)
 
@@ -136,7 +138,10 @@ async def search_semantic_scholar(
 
         papers.append(
             LiteratureEvidence(
-                title=item.get("title", ""),
+                # `or ""` (not get default) so an explicit null title from S2
+                # becomes "" instead of None — None fails the required-str field
+                # and would drop the whole query's results.
+                title=item.get("title") or "",
                 authors=authors,
                 year=year,
                 doi=doi,
@@ -216,8 +221,11 @@ async def search_all_queries(
 
     # Sort by relevance (citation-based) and recency, with a deterministic
     # DOI/title tiebreaker so identical result sets always order identically.
+    # Cap with max_papers_total (the corpus cap), not max_papers_per_query (the
+    # per-query limit), so the aggregated multi-query results are not collapsed
+    # back down to a single query's worth of papers.
     all_papers.sort(key=stable_relevance_key)
-    result = all_papers[: settings.max_papers_per_query]
+    result = all_papers[: settings.max_papers_total]
     logger.info(
         "[S2:search_all] done total_unique=%d returned=%d",
         len(all_papers),
@@ -402,7 +410,10 @@ async def snowball_papers(
 
     Returns deduplicated new papers (excluding those in existing_dois).
     """
-    seeds = sorted(seed_papers, key=lambda p: p.relevance_score, reverse=True)[:max_seeds]
+    # Deterministic tiebreaker (DOI/title) so the seed set — and hence the
+    # snowballed papers and final prior — is stable across runs when papers tie
+    # on relevance_score.
+    seeds = sorted(seed_papers, key=stable_relevance_key)[:max_seeds]
     all_new: list[LiteratureEvidence] = []
     seen: set[str] = set(existing_dois)
 
@@ -593,13 +604,15 @@ async def llm_deep_research(
                 continue
             confidence = p.get("confidence", "low")
             relevance = _CONFIDENCE_TO_RELEVANCE.get(confidence, 0.1)
+            if not isinstance(p.get("title"), str) or not p.get("title"):
+                continue  # skip hallucinated/blank entries with no usable title
             papers.append(
                 LiteratureEvidence(
-                    title=p.get("title", ""),
-                    authors=p.get("authors", []),
+                    title=p["title"],
+                    authors=p.get("authors") or [],
                     year=p.get("year"),
                     doi=p.get("doi"),
-                    abstract=p.get("abstract", ""),
+                    abstract=p.get("abstract") or "",
                     relevance_score=relevance,
                     verified=False,
                     source="llm_deep_research",

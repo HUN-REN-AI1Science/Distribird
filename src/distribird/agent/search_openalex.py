@@ -165,7 +165,8 @@ async def search_openalex_all_queries(
             logger.warning("[OpenAlex:search_all] query failed: %r error=%s", query, e)
 
     all_papers.sort(key=stable_relevance_key)
-    result = all_papers[: settings.max_papers_per_query]
+    # Corpus cap (see search.py: max_papers_total vs the per-query limit).
+    result = all_papers[: settings.max_papers_total]
     logger.info(
         "[OpenAlex:search_all] done total_unique=%d returned=%d",
         len(all_papers),

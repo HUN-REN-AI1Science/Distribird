@@ -82,13 +82,14 @@ class RunTrace:
 
     def add(self, kind: str, data: dict[str, Any]) -> None:
         self._seq += 1
+        now = time.time()  # one clock read so ts == started_at + rel_ts exactly
         self.events.append(
             {
                 "seq": self._seq,
                 "kind": kind,
                 "node": self.current_node,
-                "ts": time.time(),
-                "rel_ts": time.time() - self.started_at,
+                "ts": now,
+                "rel_ts": now - self.started_at,
                 "data": data,
             }
         )

@@ -16,20 +16,20 @@ class TestFitDistribution:
         assert fit_distribution([]) is None
 
     def test_normal_data(self):
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.normal(10, 2, 50).tolist()
         result = fit_distribution(values)
         assert result is not None
         assert result.family in (DistributionFamily.NORMAL, DistributionFamily.TRUNCATED_NORMAL)
 
     def test_gamma_data(self):
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.gamma(2, 3, 50).tolist()
         result = fit_distribution(values, lower_bound=0)
         assert result is not None
 
     def test_bounded_data(self):
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.uniform(2, 8, 50).tolist()
         result = fit_distribution(values, lower_bound=0, upper_bound=10)
         assert result is not None
@@ -94,7 +94,7 @@ class TestValuesToPrior:
         assert prior.is_informative
 
     def test_many_values(self):
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(1729)
         values = rng.normal(25, 5, 20).tolist()
         prior = values_to_prior("test", values, lower_bound=0, upper_bound=50)
         assert prior.confidence == ConfidenceLevel.HIGH

@@ -285,8 +285,16 @@ async def _attempt_fetch(
         resp.raise_for_status()
 
         content_type = resp.headers.get("content-type", "")
-        if "pdf" not in content_type and not url.endswith(".pdf"):
-            is_html = "html" in content_type
+        is_html = "html" in content_type
+        is_pdf = "pdf" in content_type
+        # Route through the gated HTML path whenever the server says HTML — even
+        # at a '.pdf' URL. Publishers serve bot-challenge interstitials as
+        # text/html at .pdf URLs; trusting the suffix would send the HTML bytes
+        # to PyMuPDF (which auto-detects HTML regardless of the filetype hint),
+        # smuggling the challenge boilerplate past _HTML_BOT_CHALLENGE as "PDF
+        # text". The PDF path is kept for genuine PDFs (pdf content-type, or a
+        # .pdf URL with a non-HTML/ambiguous content-type).
+        if is_html or (not is_pdf and not url.endswith(".pdf")):
             # HTML landing page — follow its citation_pdf_url to the real PDF (once).
             if _depth == 0 and is_html:
                 pdf_url = _citation_pdf_url(resp.text, url)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from distribird.distributions.constraints import filter_values_by_constraints
+from distribird.distributions.constraints import check_value_in_bounds
 from distribird.distributions.fitting import values_to_prior
 from distribird.models import (
     EnrichedContext,
@@ -90,25 +90,16 @@ def synthesize_prior(
 ) -> FittedPrior:
     """Synthesize a fitted prior from literature evidence."""
     weighted_values = collect_weighted_values(papers)
-    raw_values = [wv.value for wv in weighted_values]
 
-    # Filter by constraints
-    valid_values, excluded = filter_values_by_constraints(raw_values, parameter.constraints)
-
-    # Build weights and uncertainties for valid values only
-    valid_set = set()
-    for i, v in enumerate(raw_values):
-        if v in valid_values:
-            valid_set.add(i)
-
-    weights = []
-    uncertainties = []
-    valid_idx = 0
-    for i, wv in enumerate(weighted_values):
-        if valid_idx < len(valid_values) and wv.value == valid_values[valid_idx]:
-            weights.append(wv.weight)
-            uncertainties.append(wv.uncertainty)
-            valid_idx += 1
+    # Filter by constraints, keeping each value bound to its own weight and
+    # uncertainty. (The previous code re-derived the alignment by float-equality
+    # matching, which desynced on NaN/duplicate values and left a dead `valid_set`.)
+    kept = [
+        wv for wv in weighted_values if check_value_in_bounds(wv.value, parameter.constraints)
+    ]
+    valid_values = [wv.value for wv in kept]
+    weights = [wv.weight for wv in kept]
+    uncertainties = [wv.uncertainty for wv in kept]
 
     # Use enrichment typical_range as fallback bounds when user provides none
     effective_lb, effective_ub = _infer_bounds_from_enrichment(parameter, enrichment)

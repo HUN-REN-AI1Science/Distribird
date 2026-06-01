@@ -829,7 +829,7 @@ def main() -> None:
     # Sidebar: clear saved settings
     st.sidebar.markdown("---")
     st.sidebar.caption(
-        "Your settings and results are saved locally in your browser. "
+        "Your settings and parameters are saved locally in your browser. "
         "We do not store any of your data on our servers."
     )
     if st.sidebar.button("Clear saved settings"):

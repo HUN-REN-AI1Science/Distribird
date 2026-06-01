@@ -148,9 +148,11 @@ async def run_parameter_graph(
 
     # Install a token accumulator scoped to this task; every `_llm_json_call`
     # invocation from this coroutine (and its asyncio subtasks) will add into it.
-    from distribird.agent.extract import reset_token_accumulator
+    # Also install the per-task LLM seed so calls are reproducible when one is set.
+    from distribird.agent.extract import reset_token_accumulator, set_llm_seed
 
     token_usage = reset_token_accumulator()
+    set_llm_seed(settings.llm_seed)
 
     # Install a structured debug trace (no-op unless settings.debug_trace is on).
     trace = diagnostics.start_run(parameter, settings)
