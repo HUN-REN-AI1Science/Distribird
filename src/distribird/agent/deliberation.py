@@ -15,7 +15,7 @@ from distribird.agent.agents import (
     SourceAgent,
     WebSearchAgent,
 )
-from distribird.agent.extract import _llm_json_call
+from distribird.agent.extract import _build_context_block, _llm_json_call
 from distribird.agent.prompts import DELIBERATION_MODERATOR
 from distribird.agent.search import stable_relevance_key
 from distribird.config import Settings
@@ -105,20 +105,6 @@ def _deduplicate_across_agents(
                     doi_to_index[doi] = idx
 
     return all_papers, paper_sources
-
-
-def _build_context_block(enrichment: EnrichedContext | None) -> str:
-    """Build a context summary block for the deliberation prompt."""
-    if enrichment is None:
-        return ""
-    parts = []
-    if enrichment.application_context:
-        parts.append(f"Application context: {enrichment.application_context}")
-    if enrichment.context_keywords:
-        parts.append(f"Context keywords: {', '.join(enrichment.context_keywords)}")
-    if enrichment.typical_range:
-        parts.append(f"Expected range: {enrichment.typical_range}")
-    return "\n".join(parts)
 
 
 def _build_deliberation_prompt(

@@ -10,6 +10,7 @@ from openai import OpenAI
 from distribird.agent.extract import _llm_json_call
 from distribird.agent.prompts import WEB_SEARCH_AGENT
 from distribird.agent.search import (
+    _CONFIDENCE_TO_RELEVANCE,
     llm_deep_research,
     search_all_queries,
     verify_deep_research_papers,
@@ -27,8 +28,6 @@ if TYPE_CHECKING:
     from distribird.agent.state import BlackboardMessage
 
 logger = logging.getLogger(__name__)
-
-_CONFIDENCE_TO_RELEVANCE = {"high": 0.5, "medium": 0.3, "low": 0.1}
 
 
 class SourceAgent(Protocol):

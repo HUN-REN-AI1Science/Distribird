@@ -332,7 +332,7 @@ def extract_values_from_paper(
             temperature=settings.llm_temperature_precise,
             label="value_extraction",
         )
-    except (json.JSONDecodeError, Exception) as e:
+    except Exception as e:
         logger.warning("[LLM:extract] failed paper=%r error=%s", paper.title[:80], e)
         return []
 
@@ -449,7 +449,7 @@ def extract_values_batch(
             temperature=settings.llm_temperature_precise,
             label="batch_value_extraction",
         )
-    except (json.JSONDecodeError, Exception) as e:
+    except Exception as e:
         logger.warning("[LLM:batch_extract] batch failed, falling back to per-paper: %s", e)
         return [extract_values_from_paper(p, parameter, settings, enrichment) for p in papers]
 
@@ -542,7 +542,7 @@ def extract_values_web_assisted(
                 extra_body=extra_body,
                 label="web_assisted_extraction",
             )
-        except (json.JSONDecodeError, Exception) as e:
+        except Exception as e:
             logger.warning("[LLM:web_extract] batch failed: %s", e)
             continue
 
@@ -666,7 +666,7 @@ def extract_consensus_values(
             temperature=settings.llm_temperature_precise,
             label="consensus_extraction",
         )
-    except (json.JSONDecodeError, Exception) as e:
+    except Exception as e:
         logger.warning("[LLM:consensus_extract] failed: %s", e)
         return []
 

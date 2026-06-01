@@ -21,10 +21,11 @@ class FitCandidate:
     aic: float
 
 
-def _fit_truncated_normal(
-    values: np.ndarray, lower: float, upper: float, weights: np.ndarray | None = None
-) -> FitCandidate | None:
-    """Fit a truncated normal distribution."""
+def _mean_std_floored(values: np.ndarray, weights: np.ndarray | None) -> tuple[float, float]:
+    """Mean and standard deviation of ``values`` (weighted when ``weights`` given).
+
+    Applies a small floor so a degenerate (near-zero) sigma never collapses a fit.
+    """
     if weights is not None:
         mu = float(np.average(values, weights=weights))
         sigma = float(np.sqrt(np.average((values - mu) ** 2, weights=weights)))
@@ -33,6 +34,14 @@ def _fit_truncated_normal(
         sigma = float(np.std(values, ddof=1)) if len(values) > 1 else float(np.std(values))
     if sigma < 1e-12:
         sigma = abs(mu) * 0.1 if abs(mu) > 1e-12 else 1.0
+    return mu, sigma
+
+
+def _fit_truncated_normal(
+    values: np.ndarray, lower: float, upper: float, weights: np.ndarray | None = None
+) -> FitCandidate | None:
+    """Fit a truncated normal distribution."""
+    mu, sigma = _mean_std_floored(values, weights)
 
     a_std = (lower - mu) / sigma
     b_std = (upper - mu) / sigma
@@ -57,14 +66,7 @@ def _fit_truncated_normal(
 
 
 def _fit_normal(values: np.ndarray, weights: np.ndarray | None = None) -> FitCandidate | None:
-    if weights is not None:
-        mu = float(np.average(values, weights=weights))
-        sigma = float(np.sqrt(np.average((values - mu) ** 2, weights=weights)))
-    else:
-        mu = float(np.mean(values))
-        sigma = float(np.std(values, ddof=1)) if len(values) > 1 else float(np.std(values))
-    if sigma < 1e-12:
-        sigma = abs(mu) * 0.1 if abs(mu) > 1e-12 else 1.0
+    mu, sigma = _mean_std_floored(values, weights)
     try:
         logpdf = stats.norm.logpdf(values, loc=mu, scale=sigma)
         if weights is not None:
@@ -349,12 +351,10 @@ def values_to_prior(
             n_sources=n,
         )
 
-    # 5+ values: full fitting
-    candidate_or_none = fit_distribution(values, lower_bound, upper_bound, weights=weights)
-    if candidate_or_none is None:
-        candidate = moment_match_normal(values, lower_bound, upper_bound, weights=weights)
-    else:
-        candidate = candidate_or_none
+    # 5+ values: full fitting, falling back to moment matching if no family fits.
+    candidate = fit_distribution(
+        values, lower_bound, upper_bound, weights=weights
+    ) or moment_match_normal(values, lower_bound, upper_bound, weights=weights)
 
     return FittedPrior(
         parameter_name=parameter_name,
