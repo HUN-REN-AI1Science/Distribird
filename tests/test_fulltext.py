@@ -251,3 +251,31 @@ async def test_attempt_fetch_prefers_citation_pdf_url_over_html():
     assert outcome == "downloaded"
     assert reason == "ok"  # PDF preferred over HTML extraction
     assert "5.2" in text
+
+
+def test_smart_truncate_keeps_text_under_storage_cap():
+    """Text between the old 30k cut and the storage cap passes through untouched.
+
+    Regression: the historical hard 30k truncation discarded most of a paper.
+    """
+    text = "Sentence about maize LAI.\n\n" * 4000  # ~108k chars, well under 400k
+    assert 30_000 < len(text) < 400_000
+    assert fulltext._smart_truncate(text, 400_000) == text
+
+
+def test_smart_truncate_still_prioritises_above_storage_cap():
+    """Beyond the storage cap, Methods/Results prioritisation still applies."""
+    body = "Intro paragraph.\n" * 50 + "Methods\n" + "We measured the parameter.\n" * 30000
+    assert len(body) > 400_000
+    out = fulltext._smart_truncate(body, 400_000)
+    assert len(out) <= 400_000
+    assert "Methods" in out
+
+
+def test_pdf_bytes_to_text_respects_max_chars():
+    """The PDF extractor truncates to the passed max_chars (threaded from settings)."""
+    long_raw = "maize canopy measurement. " * 5000  # ~135k chars
+    with patch.object(fulltext, "_extract_text", return_value=long_raw):
+        text, extra = fulltext._pdf_bytes_to_text(b"ignored", max_chars=20_000)
+    assert len(text) <= 20_000
+    assert extra["n_chars_raw"] == len(long_raw)

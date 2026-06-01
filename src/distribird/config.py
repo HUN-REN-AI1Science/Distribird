@@ -29,6 +29,38 @@ class Settings(BaseSettings):
         default=0.1, ge=0.0, le=2.0
     )  # multi-agent deliberation moderator
 
+    # Page-turning / context-budget controls for full-text extraction.
+    # When a paper's text fits one LLM call it is extracted in a single call
+    # (the historical behaviour). When it does not, the text is split into
+    # sequential overlapping chunks ("pages"), each extracted separately, and
+    # the values are merged + deduplicated so the WHOLE paper contributes to
+    # the prior rather than only the first ~30k characters.
+    #
+    # The per-call character budget is derived as:
+    #   (llm_max_context_tokens - llm_reserved_answer_tokens)
+    #       * llm_chars_per_token  -  prompt_overhead_chars
+    # Default 255k matches the configured cloud model and keeps typical papers
+    # single-call; lower it (e.g. DISTRIBIRD_LLM_MAX_CONTEXT_TOKENS=8000) for a
+    # small local host and page-turning activates automatically.
+    llm_max_context_tokens: int = Field(default=255_000, ge=1_000)
+    # Headroom reserved for the model's JSON answer (and any reasoning tokens).
+    llm_reserved_answer_tokens: int = Field(default=4_000, ge=256)
+    # Conservative chars-per-token estimate (no tokenizer in repo). English
+    # prose is ~4 chars/token; 3.5 under-fills so numeric/table-dense scientific
+    # text — which tokenizes denser — does not overflow the window.
+    llm_chars_per_token: float = Field(default=3.5, gt=0.0)
+    # Safety cap on chunks per paper so a pathological huge PDF on a small
+    # window cannot explode into hundreds of LLM calls. NOT a silent drop: when
+    # exceeded we warn and keep Methods/Results chunks first (see _cap_chunks).
+    extraction_max_chunks: int = Field(default=8, ge=1)
+    # Overlap between consecutive chunks so a value straddling a boundary is not
+    # lost; the dedup pass removes the duplicates the overlap creates.
+    extraction_chunk_overlap_chars: int = Field(default=1_500, ge=0)
+    # Generous storage cap applied at fetch time. Decouples stored full text
+    # from the per-call budget so the whole paper reaches extraction; only
+    # guards against absurd PDFs eating memory. Replaces the old 30k cut.
+    fulltext_storage_max_chars: int = Field(default=400_000, ge=10_000)
+
     semantic_scholar_api_key: str = ""
     semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"
 

@@ -1,20 +1,35 @@
 """Tests for value extraction with mocked LLM."""
 
 import json
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from distribird.agent.extract import (
+    _PAGE_NOTE_RESERVE_CHARS,
+    _cap_chunks,
+    _char_budget,
+    _chunk_text,
+    _dedup_values,
     _llm_json_call,
     _passes_bounds_check,
+    _value_extraction_overhead,
     extract_all_values,
     extract_values_batch,
     extract_values_from_paper,
     extract_values_web_assisted,
+    reset_chunk_accumulator,
 )
 from distribird.config import Settings
 from distribird.models import ConstraintSpec, ExtractedValue, LiteratureEvidence, ParameterInput
+
+
+def _json_response(content: str) -> MagicMock:
+    """A mock OpenAI chat-completion response whose message content is ``content``."""
+    resp = MagicMock()
+    resp.choices = [MagicMock(message=MagicMock(content=content))]
+    return resp
 
 
 @pytest.fixture
@@ -365,3 +380,223 @@ class TestWebAssistedExtraction:
         # Check that web_search_options was passed
         extra_body = call_args.kwargs.get("extra_body") or call_args[1].get("extra_body")
         assert extra_body == {"web_search_options": {"search_context_size": "high"}}
+
+
+class TestCharBudget:
+    """The per-call character budget derivation."""
+
+    def test_budget_matches_formula(self):
+        s = Settings(
+            llm_max_context_tokens=10_000,
+            llm_reserved_answer_tokens=2_000,
+            llm_chars_per_token=4.0,
+        )
+        # (10000 - 2000) * 4.0 - 100 = 31_900
+        assert _char_budget(s, 100) == 31_900
+
+    def test_budget_can_go_non_positive_on_tiny_window(self):
+        s = Settings(
+            llm_max_context_tokens=1_000,
+            llm_reserved_answer_tokens=900,
+            llm_chars_per_token=1.0,
+        )
+        # (1000 - 900) * 1.0 - 5000 = -4900
+        assert _char_budget(s, 5_000) < 0
+
+
+class TestChunkText:
+    """Deterministic page splitting."""
+
+    def test_single_chunk_when_fits(self):
+        text = "abc\n\ndef"
+        assert _chunk_text(text, 1_000, 100) == [text]
+
+    def test_splits_with_overlap_and_is_deterministic(self):
+        # Unique content per paragraph so substring positions are unambiguous.
+        text = "\n\n".join(f"P{i:03d} " + "abcdefghij " * 4 for i in range(40))
+        chunks = _chunk_text(text, 600, 80)
+        assert len(chunks) > 1
+        assert all(len(c) <= 600 for c in chunks)
+        # Deterministic: identical inputs -> identical output.
+        assert _chunk_text(text, 600, 80) == chunks
+        # Full coverage with no gaps: each chunk starts at or before the prior
+        # chunk's end (i.e. chunks are contiguous or overlap), and together they
+        # span the whole text.
+        assert text.startswith(chunks[0])
+        prev_end = 0
+        for c in chunks:
+            start = text.index(c)
+            assert start <= prev_end
+            prev_end = start + len(c)
+        assert prev_end == len(text)
+
+    def test_no_zero_progress_with_degenerate_overlap(self):
+        text = "y" * 1_000  # no newline boundaries
+        chunks = _chunk_text(text, 100, 500)  # overlap > chunk -> clamped < chunk
+        assert len(chunks) > 1
+        assert all(len(c) <= 100 for c in chunks)
+
+
+class TestDedupValues:
+    def test_overlap_duplicates_collapse_first_wins(self):
+        a = ExtractedValue(reported_value=5.0, context="cond A")
+        a_dup = ExtractedValue(reported_value=5.0, context="cond A", sample_size=10)
+        b = ExtractedValue(reported_value=5.0, context="cond B")
+        out = _dedup_values([a, a_dup, b])
+        assert out == [a, b]  # a_dup dropped (same key), b kept (different context)
+
+
+class TestCapChunks:
+    def test_caps_and_prioritises_methods(self, caplog):
+        chunks = [f"section {i}\nbody text here" for i in range(5)]
+        chunks[3] = "Methods\nwe measured the parameter"  # priority section
+        acc = reset_chunk_accumulator()
+        with caplog.at_level(logging.WARNING):
+            kept = _cap_chunks(chunks, 2, LiteratureEvidence(title="Big paper"))
+        assert len(kept) == 2
+        assert any("Methods" in c for c in kept)  # priority chunk retained
+        assert any("> cap 2" in r.message for r in caplog.records)
+        assert len(acc["cap_warnings"]) == 1  # surfaced to the node accumulator
+
+    def test_no_cap_when_under_limit(self):
+        chunks = ["a", "b"]
+        assert _cap_chunks(chunks, 8, LiteratureEvidence(title="t")) == chunks
+
+
+@patch("distribird.agent.extract.get_client")
+def test_full_text_fits_single_call(mock_get_client, parameter, settings):
+    """Full text under the (large default) budget is extracted in one call."""
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+    mock_client.chat.completions.create.return_value = _json_response('[{"reported_value": 5.0}]')
+
+    paper = LiteratureEvidence(title="T", full_text="The LAI was about 5. " * 50)
+    reset_chunk_accumulator()
+    values = extract_values_from_paper(paper, parameter, settings)
+
+    assert mock_client.chat.completions.create.call_count == 1
+    assert len(values) == 1
+
+
+@patch("distribird.agent.extract.get_client")
+def test_oversized_full_text_is_paged(mock_get_client, parameter):
+    """Full text exceeding the budget is read across multiple chunks and merged."""
+    s = Settings(
+        llm_base_url="x",
+        llm_api_key="y",
+        llm_max_context_tokens=5_000,
+        llm_reserved_answer_tokens=256,
+        llm_chars_per_token=4.0,
+        extraction_chunk_overlap_chars=100,
+        extraction_max_chunks=8,
+    )
+    overhead = _value_extraction_overhead(LiteratureEvidence(title="T"), parameter, None)
+    budget = _char_budget(s, overhead)
+    assert budget > 0
+
+    para = ("measurement " * 30).strip()
+    text = "\n\n".join([para] * ((budget * 3) // len(para) + 5))
+    # Chunk size reserves room for the per-page reading note.
+    chunk_chars = max(budget - _PAGE_NOTE_RESERVE_CHARS, 1)
+    expected_chunks = _chunk_text(text, chunk_chars, s.extraction_chunk_overlap_chars)
+    n = len(expected_chunks)
+    assert 1 < n <= s.extraction_max_chunks
+
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+    # Distinct value per chunk so dedup does not collapse them.
+    mock_client.chat.completions.create.side_effect = [
+        _json_response(f'[{{"reported_value": {i + 1}.0}}]') for i in range(n)
+    ]
+
+    paper = LiteratureEvidence(title="T", full_text=text)
+    chunk_stats = reset_chunk_accumulator()
+    values = extract_values_from_paper(paper, parameter, s)
+
+    assert mock_client.chat.completions.create.call_count == n
+    assert len(values) == n  # all chunks contributed, no spurious dedup
+    assert chunk_stats["n_chunked_papers"] == 1
+    assert chunk_stats["total_chunks"] == n
+
+
+def _paging_settings() -> Settings:
+    """Settings whose budget is positive but small enough to force page-turning."""
+    return Settings(
+        llm_base_url="x",
+        llm_api_key="y",
+        llm_max_context_tokens=5_000,
+        llm_reserved_answer_tokens=256,
+        llm_chars_per_token=4.0,
+        extraction_chunk_overlap_chars=100,
+        extraction_max_chunks=8,
+    )
+
+
+def _oversized_text(s: Settings, parameter) -> tuple[str, int]:
+    """Build full text that pages into >1 chunk; return (text, expected_chunk_count)."""
+    overhead = _value_extraction_overhead(LiteratureEvidence(title="T"), parameter, None)
+    budget = _char_budget(s, overhead)
+    para = ("measurement " * 30).strip()
+    text = "\n\n".join([para] * ((budget * 3) // len(para) + 5))
+    chunk_chars = max(budget - _PAGE_NOTE_RESERVE_CHARS, 1)
+    n = len(_chunk_text(text, chunk_chars, s.extraction_chunk_overlap_chars))
+    return text, n
+
+
+@patch("distribird.agent.extract.get_client")
+def test_paged_chunks_carry_part_markers(mock_get_client, parameter):
+    """Each page's prompt tells the model which part of the paper it is reading."""
+    s = _paging_settings()
+    text, n = _oversized_text(s, parameter)
+    assert n > 1
+
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+    mock_client.chat.completions.create.return_value = _json_response("[]")
+
+    reset_chunk_accumulator()
+    extract_values_from_paper(LiteratureEvidence(title="T", full_text=text), parameter, s)
+
+    calls = mock_client.chat.completions.create.call_args_list
+    assert len(calls) == n
+    for part, call in enumerate(calls, start=1):
+        user_msg = call.kwargs["messages"][-1]["content"]
+        assert f"PART {part} of {n}" in user_msg
+
+
+@patch("distribird.agent.extract.get_client")
+def test_single_call_has_no_part_marker(mock_get_client, parameter, settings):
+    """A paper read in one call gets the plain prompt, with no page note."""
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+    mock_client.chat.completions.create.return_value = _json_response("[]")
+
+    paper = LiteratureEvidence(title="T", full_text="The LAI was about 5. " * 20)
+    extract_values_from_paper(paper, parameter, settings)
+
+    user_msg = mock_client.chat.completions.create.call_args.kwargs["messages"][-1]["content"]
+    assert "Reading note" not in user_msg
+
+
+@patch("distribird.agent.extract.get_client")
+def test_tiny_window_falls_back_to_single_call(mock_get_client, parameter, caplog):
+    """A context window so small the budget is non-positive still makes one call."""
+    s = Settings(
+        llm_base_url="x",
+        llm_api_key="y",
+        llm_max_context_tokens=1_000,
+        llm_reserved_answer_tokens=900,
+        llm_chars_per_token=1.0,
+    )
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+    mock_client.chat.completions.create.return_value = _json_response('[{"reported_value": 5.0}]')
+
+    paper = LiteratureEvidence(title="T", full_text="Z" * 5_000)
+    reset_chunk_accumulator()
+    with caplog.at_level(logging.WARNING):
+        values = extract_values_from_paper(paper, parameter, s)
+
+    assert mock_client.chat.completions.create.call_count == 1
+    assert len(values) == 1
+    assert any("budget <= 0" in r.message for r in caplog.records)

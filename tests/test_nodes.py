@@ -117,6 +117,20 @@ async def test_extract_node(mock_extract):
 
 
 @pytest.mark.asyncio
+@patch("distribird.agent.extract.extract_all_values")
+async def test_extract_node_trace_has_chunk_counts(mock_extract):
+    papers = [
+        LiteratureEvidence(title="P1", extracted_values=[ExtractedValue(reported_value=5.0)]),
+    ]
+    mock_extract.return_value = papers
+    state = _make_state(all_papers=papers)
+    result = await extract_node(state)
+    summary = result["trace_events"][-1].summary
+    assert "n_chunked_papers" in summary
+    assert "total_extraction_chunks" in summary
+
+
+@pytest.mark.asyncio
 async def test_quality_gate_node():
     papers = [
         LiteratureEvidence(

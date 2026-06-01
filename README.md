@@ -64,6 +64,8 @@ START ─► Enrich ─► QueryGen ─► Search ─► RelevanceJudge ──�
 
 **Full-text retrieval:** FetchFulltext downloads each paper's PDF and extracts its text. When a download is blocked (for example a publisher returns 403), it falls back to open-access mirrors via Unpaywall, and optionally to a headless stealth browser for sites behind JavaScript bot walls. See "Full-text PDF fallback" under Install.
 
+**Full-paper reading (page-turning):** Extraction reads the *entire* paper rather than only its opening pages &mdash; calibration values and parameter tables often sit deep in Methods, Results, or appendices. A paper that fits the model's context window is read in one call; a longer one is split into overlapping "pages" sized to the configured window, each read separately, and the extracted values are merged and de-duplicated. Sized to your model's context via `DISTRIBIRD_LLM_MAX_CONTEXT_TOKENS` (see Configure).
+
 **Validity defense** &mdash; Every request is classified as `VALID`, `SUSPICIOUS`, `LIKELY_INVALID`, or `UNKNOWN`. When the enrichment LLM does not recognise the parameter, the pipeline short-circuits past search, extraction, and synthesis straight to the validity node, saving roughly 80&ndash;95% of wall-clock time and LLM tokens on out-of-scope requests. Ambiguous (`SUSPICIOUS`) cases trigger a single second-opinion LLM probe.
 
 **Budget-bounded** &mdash; `IterationBudget` caps every loop to guarantee termination.
@@ -118,6 +120,7 @@ Distribird reads configuration from environment variables (prefix `DISTRIBIRD_`)
 DISTRIBIRD_LLM_BASE_URL="http://localhost:4000"   # any OpenAI-compatible endpoint
 DISTRIBIRD_LLM_API_KEY="your-key"
 DISTRIBIRD_LLM_MODEL="gpt-4o"
+DISTRIBIRD_LLM_MAX_CONTEXT_TOKENS="255000"        # your model's context window; sizes page-turning
 DISTRIBIRD_SEMANTIC_SCHOLAR_API_KEY=""            # optional, increases rate limits
 DISTRIBIRD_OPENALEX_EMAIL=""                       # your email; enables the OA mirror fallback
 DISTRIBIRD_ENABLE_OA_MIRROR_FALLBACK="true"        # default; Unpaywall mirrors over plain HTTP
@@ -128,6 +131,8 @@ DISTRIBIRD_ENABLE_HTML_FULLTEXT="true"             # default; extract text from 
 **Full-text PDF fallback.** When a paper's PDF URL is blocked, Distribird tries the direct URL first, then open-access mirrors through Unpaywall, then the stealth browser if it is enabled. The Unpaywall step needs `DISTRIBIRD_OPENALEX_EMAIL` set to a real address and is skipped without one. The stealth step needs the `stealth` extra and a host that can run a browser; it is skipped on Streamlit Community Cloud. With both off, only the direct URL is used.
 
 When a URL serves HTML instead of a PDF, Distribird extracts the article text from the HTML (for example PubMed Central full-text pages and many repository pages). A quality check rejects bot-challenge pages and thin abstract-only pages so they do not pollute extraction. This is on by default; set `DISTRIBIRD_ENABLE_HTML_FULLTEXT=false` to turn it off, or raise `DISTRIBIRD_HTML_FULLTEXT_MIN_CHARS` to be stricter about what counts as an article.
+
+**Full-paper reading (page-turning).** Distribird reads each paper in full instead of truncating it. Set `DISTRIBIRD_LLM_MAX_CONTEXT_TOKENS` to your model's context window so the per-call page size is computed correctly: the usable character budget is `(max_context_tokens − reserved_answer_tokens) × chars_per_token − prompt_overhead`. A paper within that budget is read in a single call; a longer one is split into overlapping pages (`DISTRIBIRD_EXTRACTION_CHUNK_OVERLAP_CHARS`), each extracted separately, then the values are merged and de-duplicated. `DISTRIBIRD_EXTRACTION_MAX_CHUNKS` caps pages per paper &mdash; when exceeded, Methods/Results pages are kept first and a warning is logged. Lower the context setting for a small local model (paging activates automatically); raise it on a large-context model to read most papers in one call. Each extra page is one more LLM call, so it counts against the per-parameter call budget. Defaults: 255k context, 4k reserved, 3.5 chars/token, 8 pages, 1500-char overlap. `DISTRIBIRD_FULLTEXT_STORAGE_MAX_CHARS` (default 400k) only caps how much text is stored per paper at fetch time.
 
 The stealth browser follows DOI and handle redirects to the real publisher before clearing the bot challenge, so publishers reached through a `doi.org` link (MDPI and similar) are recovered. Some publishers run enterprise bot protection that a headless browser cannot pass: ScienceDirect and Elsevier (PerimeterX), Wiley and Hindawi (Cloudflare managed challenge), and some institutional repositories that block direct file access. PDFs behind these are expected misses; the paper still contributes its title and abstract.
 

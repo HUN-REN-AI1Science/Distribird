@@ -94,9 +94,7 @@ def synthesize_prior(
     # Filter by constraints, keeping each value bound to its own weight and
     # uncertainty. (The previous code re-derived the alignment by float-equality
     # matching, which desynced on NaN/duplicate values and left a dead `valid_set`.)
-    kept = [
-        wv for wv in weighted_values if check_value_in_bounds(wv.value, parameter.constraints)
-    ]
+    kept = [wv for wv in weighted_values if check_value_in_bounds(wv.value, parameter.constraints)]
     valid_values = [wv.value for wv in kept]
     weights = [wv.weight for wv in kept]
     uncertainties = [wv.uncertainty for wv in kept]

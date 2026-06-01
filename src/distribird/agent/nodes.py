@@ -247,8 +247,13 @@ async def extract_node(state: PipelineState, settings: Settings) -> dict[str, ob
         extract_all_values,
         extract_consensus_values,
         extract_values_web_assisted,
+        reset_chunk_accumulator,
     )
 
+    # Page-turning stats for oversized full texts are tallied here. extract_all_values
+    # runs synchronously in this task, so the contextvar set now is visible to the
+    # _record_chunk_count calls inside it, and readable back afterwards.
+    chunk_stats = reset_chunk_accumulator()
     papers_with_values = extract_all_values(
         papers,
         parameter,
@@ -256,6 +261,7 @@ async def extract_node(state: PipelineState, settings: Settings) -> dict[str, ob
         enrichment=enrichment,
     )
     total_values = sum(len(p.extracted_values) for p in papers_with_values)
+    warnings.extend(chunk_stats["cap_warnings"])
 
     # Consensus extraction fallback
     if total_values == 0 and papers:
@@ -294,6 +300,8 @@ async def extract_node(state: PipelineState, settings: Settings) -> dict[str, ob
             "n_papers": len(papers),
             "n_with_values": len(papers_with_values),
             "total_values": total_values,
+            "n_chunked_papers": chunk_stats["n_chunked_papers"],
+            "total_extraction_chunks": chunk_stats["total_chunks"],
         },
     }
 

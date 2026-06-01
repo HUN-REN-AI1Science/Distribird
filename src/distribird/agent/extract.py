@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import time
+from typing import TypedDict
 
 from openai import OpenAI
 
@@ -41,6 +42,23 @@ _llm_seed: contextvars.ContextVar[int | None] = contextvars.ContextVar(
 )
 
 
+# Per-task page-turning stats. `extract_node` installs a fresh dict via
+# `reset_chunk_accumulator()` before running extraction; `_record_chunk_count`
+# (called once per oversized full-text paper) tallies how many papers were
+# paged and the total chunk count, and `_record_cap_warning` collects any
+# max-chunk-cap warnings so the node can surface them to the user. Mirrors the
+# token-accumulator pattern; read back via the returned dict reference.
+class ChunkStats(TypedDict):
+    n_chunked_papers: int
+    total_chunks: int
+    cap_warnings: list[str]
+
+
+_chunk_accumulator: contextvars.ContextVar[ChunkStats | None] = contextvars.ContextVar(
+    "distribird_chunk_accumulator", default=None
+)
+
+
 def set_llm_seed(seed: int | None) -> None:
     """Install the per-task LLM seed (None disables seeding)."""
     _llm_seed.set(seed)
@@ -65,6 +83,39 @@ def reset_token_accumulator() -> dict[str, int]:
     }
     _token_accumulator.set(acc)
     return acc
+
+
+def reset_chunk_accumulator() -> ChunkStats:
+    """Install a fresh per-task page-turning stats dict.
+
+    Returns the dict (mutated in place by `_record_chunk_count` and
+    `_record_cap_warning`).
+    """
+    acc: ChunkStats = {"n_chunked_papers": 0, "total_chunks": 0, "cap_warnings": []}
+    _chunk_accumulator.set(acc)
+    return acc
+
+
+def _record_chunk_count(n_chunks: int) -> None:
+    """Record that one paper was extracted across ``n_chunks`` chunks.
+
+    No-op if no accumulator is installed. ``n_chunks == 1`` (single-call) is
+    counted toward the total but not toward ``n_chunked_papers``.
+    """
+    acc = _chunk_accumulator.get()
+    if acc is None:
+        return
+    if n_chunks > 1:
+        acc["n_chunked_papers"] += 1
+    acc["total_chunks"] += n_chunks
+
+
+def _record_cap_warning(message: str) -> None:
+    """Record a max-chunk-cap warning so the extract node can surface it."""
+    acc = _chunk_accumulator.get()
+    if acc is None:
+        return
+    acc["cap_warnings"].append(message)
 
 
 def _usage_dict(response: object) -> dict[str, int]:
@@ -312,22 +363,17 @@ def _paper_text(paper: LiteratureEvidence) -> str:
     return paper.abstract
 
 
-def extract_values_from_paper(
+def _value_extraction_prompt(
+    text: str,
     paper: LiteratureEvidence,
     parameter: ParameterInput,
-    settings: Settings,
-    enrichment: EnrichedContext | None = None,
-) -> list[ExtractedValue]:
-    """Extract parameter values from a paper using LLM."""
+    enrichment: EnrichedContext | None,
+) -> str:
+    """Render the VALUE_EXTRACTION prompt for one text span."""
     from distribird.agent.prompts import VALUE_EXTRACTION
 
-    text = _paper_text(paper)
-    if not text:
-        return []
-
-    source_type = "full_text" if paper.full_text else "abstract"
     constraint = parameter.constraints
-    prompt = VALUE_EXTRACTION.format(
+    return VALUE_EXTRACTION.format(
         name=parameter.name,
         description=_effective_description(parameter, enrichment),
         unit=parameter.unit,
@@ -338,14 +384,146 @@ def extract_values_from_paper(
         abstract=text,
     )
 
-    logger.info(
-        "[LLM:extract] param=%r paper=%r source=%s model=%s",
-        parameter.name,
-        paper.title[:80],
-        source_type,
-        settings.llm_model,
+
+def _value_extraction_overhead(
+    paper: LiteratureEvidence,
+    parameter: ParameterInput,
+    enrichment: EnrichedContext | None,
+) -> int:
+    """Char length of the extraction prompt EXCLUDING the paper text.
+
+    Equals the template rendered with an empty paper-text field plus the
+    JSON-only system message that :func:`_llm_json_call` always prepends.
+    """
+    template = _value_extraction_prompt("", paper, parameter, enrichment)
+    return len(template) + len(_JSON_SYSTEM_MSG["content"])
+
+
+def _char_budget(settings: Settings, prompt_overhead_chars: int) -> int:
+    """Chars of paper text that fit in one LLM call.
+
+    ``budget = (max_context - reserved_answer) * chars_per_token - overhead``.
+    May be <= 0 on very small context windows; the caller falls back to a
+    single call in that case.
+    """
+    input_tokens = settings.llm_max_context_tokens - settings.llm_reserved_answer_tokens
+    return int(input_tokens * settings.llm_chars_per_token) - prompt_overhead_chars
+
+
+def _chunk_text(text: str, chunk_chars: int, overlap_chars: int) -> list[str]:
+    """Split ``text`` into overlapping chunks, preferring paragraph/line breaks.
+
+    Deterministic: output depends only on ``(text, chunk_chars, overlap_chars)``.
+    Each chunk is at most ``chunk_chars`` long; consecutive chunks overlap by
+    ~``overlap_chars`` so a value straddling a cut is not lost (the overlap
+    duplicates are removed later by :func:`_dedup_values`). Cuts snap backward
+    to the nearest blank line (then newline) within a bounded look-back so a
+    sentence/number is not split mid-way.
+    """
+    if chunk_chars <= 0 or len(text) <= chunk_chars:
+        return [text]
+    overlap = min(overlap_chars, chunk_chars - 1)
+    look_back = min(chunk_chars // 5, 2000)
+    chunks: list[str] = []
+    start = 0
+    n = len(text)
+    while start < n:
+        end = min(start + chunk_chars, n)
+        if end < n:
+            boundary = text.rfind("\n\n", end - look_back, end)
+            if boundary == -1:
+                boundary = text.rfind("\n", end - look_back, end)
+            if boundary > start:
+                end = boundary
+        chunks.append(text[start:end])
+        if end >= n:
+            break
+        start = max(end - overlap, start + 1)  # guard against zero-progress loops
+    return chunks
+
+
+def _dedup_values(values: list[ExtractedValue]) -> list[ExtractedValue]:
+    """Drop duplicate values produced by chunk overlap (first occurrence wins).
+
+    Keyed on ``(reported_value, reported_range, context)`` — the fields most
+    likely identical when the same sentence appears in two overlapping chunks.
+    """
+    seen: set[object] = set()
+    out: list[ExtractedValue] = []
+    for v in values:
+        key = (v.reported_value, v.reported_range, (v.context or "").strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(v)
+    return out
+
+
+def _cap_chunks(chunks: list[str], max_chunks: int, paper: LiteratureEvidence) -> list[str]:
+    """Cap the chunk count, keeping Methods/Results chunks first.
+
+    Never a silent drop: emits a warning (logged and recorded for the node) so
+    the lost content is visible.
+    """
+    if len(chunks) <= max_chunks:
+        return chunks
+    from distribird.agent.fulltext import _PRIORITY_SECTIONS
+
+    # Priority (Methods/Results/...) chunks sort first; ties keep document order.
+    scored = [
+        (not any(_PRIORITY_SECTIONS.match(ln.strip()) for ln in chunk.split("\n")), i, chunk)
+        for i, chunk in enumerate(chunks)
+    ]
+    kept = sorted(scored)[:max_chunks]
+    kept.sort(key=lambda t: t[1])  # restore document order (deterministic)
+    dropped = len(chunks) - max_chunks
+    message = (
+        f"Paper {paper.title[:80]!r} needed {len(chunks)} chunks (> cap {max_chunks}); "
+        f"kept {max_chunks} prioritising Methods/Results, dropped {dropped}. Raise "
+        f"DISTRIBIRD_EXTRACTION_MAX_CHUNKS or DISTRIBIRD_LLM_MAX_CONTEXT_TOKENS to read all."
+    )
+    logger.warning("[LLM:extract] %s", message)
+    _record_cap_warning(message)
+    return [chunk for _, _, chunk in kept]
+
+
+# Header prepended to each page so the model knows it is reading one part of a
+# longer paper that was split for length — not a short standalone document. This
+# goes into the prompt INPUT only (never into an extracted value's ``context``
+# field), so it does not affect overlap de-duplication. Room for it is reserved
+# from the chunk budget via ``_PAGE_NOTE_RESERVE_CHARS``.
+def _page_note(part: int, total: int) -> str:
+    """A short header telling the model this text is part ``part`` of ``total``."""
+    return (
+        f"[Reading note: this is PART {part} of {total} of a single paper that was "
+        f"split into sequential parts because it is too long to read in one pass. "
+        f"It may begin or end mid-sentence, and some context may live in other "
+        f"parts. Extract every value reported in THIS part; the other parts are "
+        f"read separately and the results are combined afterwards.]\n\n"
     )
 
+
+# Char budget reserved per page for the note above. Measured from the note
+# itself (with a wide part/total) so it stays correct if the text changes and
+# never undershoots the real header length.
+_PAGE_NOTE_RESERVE_CHARS = len(_page_note(9999, 9999))
+
+
+def _extract_from_text(
+    text: str,
+    paper: LiteratureEvidence,
+    parameter: ParameterInput,
+    settings: Settings,
+    enrichment: EnrichedContext | None,
+    source_label: str,
+    page_context: str = "",
+) -> list[ExtractedValue]:
+    """Single LLM-call extraction over one text span (whole paper or one chunk).
+
+    ``page_context`` is an optional header prepended to the text (used by
+    page-turning to mark the part number); empty for single-call extraction.
+    """
+    prompt = _value_extraction_prompt(f"{page_context}{text}", paper, parameter, enrichment)
     client = get_client(settings)
     try:
         raw = _llm_json_call(
@@ -356,19 +534,103 @@ def extract_values_from_paper(
             label="value_extraction",
         )
     except Exception as e:
-        logger.warning("[LLM:extract] failed paper=%r error=%s", paper.title[:80], e)
+        logger.warning(
+            "[LLM:extract] failed paper=%r (%s) error=%s", paper.title[:80], source_label, e
+        )
         return []
 
     if not isinstance(raw, list):
         return []
 
-    values = _parse_extracted_items(raw, constraint, paper.title, enrichment)
+    return _parse_extracted_items(raw, parameter.constraints, paper.title, enrichment)
+
+
+def extract_values_from_paper(
+    paper: LiteratureEvidence,
+    parameter: ParameterInput,
+    settings: Settings,
+    enrichment: EnrichedContext | None = None,
+) -> list[ExtractedValue]:
+    """Extract parameter values from a paper using the LLM.
+
+    An abstract, or full text that fits the per-call context budget, is
+    extracted in a single call (the historical behaviour). Oversized full text
+    is read by *page-turning*: split into overlapping chunks, extracted per
+    chunk, then merged and deduplicated so the WHOLE paper contributes to the
+    prior instead of only its first portion.
+    """
+    text = _paper_text(paper)
+    if not text:
+        return []
+
+    source_type = "full_text" if paper.full_text else "abstract"
+    overhead = _value_extraction_overhead(paper, parameter, enrichment)
+    budget = _char_budget(settings, overhead)
 
     logger.info(
-        "[LLM:extract] param=%r paper=%r values_extracted=%d",
+        "[LLM:extract] param=%r paper=%r source=%s model=%s len=%d budget=%d",
         parameter.name,
         paper.title[:80],
+        source_type,
+        settings.llm_model,
+        len(text),
+        budget,
+    )
+
+    # Abstract, text that fits, or a degenerate (tiny-window) budget -> one call.
+    if not paper.full_text or budget <= 0 or len(text) <= budget:
+        if budget <= 0:
+            logger.warning(
+                "[LLM:extract] context budget <= 0 (%d); extracting in one call, may overflow",
+                budget,
+            )
+        _record_chunk_count(1)
+        values = _extract_from_text(text, paper, parameter, settings, enrichment, "single")
+        logger.info(
+            "[LLM:extract] param=%r paper=%r values_extracted=%d",
+            parameter.name,
+            paper.title[:80],
+            len(values),
+        )
+        return values
+
+    # Oversized full text -> page-turn. Reserve room for the per-page reading
+    # note so the note + chunk together still fit the budget.
+    chunk_chars = max(budget - _PAGE_NOTE_RESERVE_CHARS, 1)
+    chunks = _chunk_text(text, chunk_chars, settings.extraction_chunk_overlap_chars)
+    chunks = _cap_chunks(chunks, settings.extraction_max_chunks, paper)
+    n_chunks = len(chunks)
+    _record_chunk_count(n_chunks)
+    logger.info(
+        "[LLM:extract] page-turning param=%r paper=%r len=%d budget=%d chunks=%d",
+        parameter.name,
+        paper.title[:80],
+        len(text),
+        budget,
+        n_chunks,
+    )
+
+    collected: list[ExtractedValue] = []
+    for i, chunk in enumerate(chunks):
+        collected.extend(
+            _extract_from_text(
+                chunk,
+                paper,
+                parameter,
+                settings,
+                enrichment,
+                f"chunk {i + 1}/{n_chunks}",
+                page_context=_page_note(i + 1, n_chunks),
+            )
+        )
+    values = _dedup_values(collected)
+    logger.info(
+        "[LLM:extract] param=%r paper=%r chunks=%d values_extracted=%d (deduped from %d)",
+        parameter.name,
+        paper.title[:80],
+        len(chunks),
         len(values),
+        len(collected),
     )
     return values
 

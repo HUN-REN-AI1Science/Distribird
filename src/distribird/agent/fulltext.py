@@ -16,8 +16,12 @@ from distribird.models import LiteratureEvidence
 
 logger = logging.getLogger(__name__)
 
-# Max characters to keep from full text (LLM context limit)
-MAX_TEXT_CHARS = 30_000
+# Fallback storage cap for extracted full text, used only when a caller does
+# not pass an explicit ``max_chars``. Production fetch paths pass
+# ``settings.fulltext_storage_max_chars`` (default 400k) so the whole paper
+# reaches extraction; the per-call LLM context budget then governs how the text
+# is chunked (see extract.py page-turning), rather than discarding content here.
+MAX_TEXT_CHARS = 400_000
 
 # After navigating to a host's landing page, wait this long for its JS bot
 # challenge (e.g. MDPI's bm-verify ~5s meta-refresh) to set clearance cookies
@@ -115,7 +119,9 @@ def _smart_truncate(text: str, max_chars: int = MAX_TEXT_CHARS) -> str:
     return text[:max_chars]
 
 
-def _pdf_bytes_to_text(content: bytes) -> tuple[str, dict[str, object]]:
+def _pdf_bytes_to_text(
+    content: bytes, max_chars: int = MAX_TEXT_CHARS
+) -> tuple[str, dict[str, object]]:
     """Extract and smart-truncate text from raw PDF bytes.
 
     Returns ``(text, extra)``; ``text`` is empty when the bytes yield no text.
@@ -124,7 +130,7 @@ def _pdf_bytes_to_text(content: bytes) -> tuple[str, dict[str, object]]:
     raw_text = _extract_text(content, "pdf")
     if not raw_text:
         return "", {"n_bytes": len(content)}
-    text = _smart_truncate(raw_text)
+    text = _smart_truncate(raw_text, max_chars)
     return text, {
         "n_bytes": len(content),
         "n_chars_raw": len(raw_text),
@@ -132,7 +138,9 @@ def _pdf_bytes_to_text(content: bytes) -> tuple[str, dict[str, object]]:
     }
 
 
-def _html_bytes_to_text(content: bytes, min_chars: int) -> tuple[str, str, dict[str, object]]:
+def _html_bytes_to_text(
+    content: bytes, min_chars: int, max_chars: int = MAX_TEXT_CHARS
+) -> tuple[str, str, dict[str, object]]:
     """Extract and smart-truncate article text from raw HTML bytes.
 
     Some publishers serve the full article (or a landing page) as HTML rather
@@ -154,7 +162,7 @@ def _html_bytes_to_text(content: bytes, min_chars: int) -> tuple[str, str, dict[
         return "", "html_bot_challenge", extra
     if len(raw_text) < min_chars:
         return "", "html_too_thin", extra
-    text = _smart_truncate(raw_text)
+    text = _smart_truncate(raw_text, max_chars)
     extra["n_chars_kept"] = len(text)
     return text, "", extra
 
@@ -172,9 +180,11 @@ def _bytes_to_text(
     extractors apart by content-type.
     """
     if settings.enable_html_fulltext and "pdf" not in content_type and "html" in content_type:
-        text, reason, extra = _html_bytes_to_text(body, settings.html_fulltext_min_chars)
+        text, reason, extra = _html_bytes_to_text(
+            body, settings.html_fulltext_min_chars, settings.fulltext_storage_max_chars
+        )
         return text, ("html_fulltext" if text else reason), extra
-    text, extra = _pdf_bytes_to_text(body)
+    text, extra = _pdf_bytes_to_text(body, settings.fulltext_storage_max_chars)
     return text, ("ok" if text else "empty_pdf_text"), extra
 
 
@@ -304,7 +314,9 @@ async def _attempt_fetch(
             # No PDF available — try the HTML itself (PMC, repositories, DOAJ).
             if is_html and settings.enable_html_fulltext:
                 text, reason, extra = _html_bytes_to_text(
-                    resp.content, settings.html_fulltext_min_chars
+                    resp.content,
+                    settings.html_fulltext_min_chars,
+                    settings.fulltext_storage_max_chars,
                 )
                 extra = {"content_type": content_type, **extra}
                 if text:
@@ -317,7 +329,7 @@ async def _attempt_fetch(
             logger.info("[fulltext] skipping non-PDF content-type=%r", content_type)
             return "", "skipped", "non_pdf_content_type", {"content_type": content_type}
 
-        text, extra = _pdf_bytes_to_text(resp.content)
+        text, extra = _pdf_bytes_to_text(resp.content, settings.fulltext_storage_max_chars)
         if not text:
             return "", "failed", "empty_pdf_text", extra
         logger.info(
@@ -424,7 +436,7 @@ async def _stealth_fetch_batch(
     timeout_ms = int(settings.stealth_fetch_timeout * 1000)
     logger.info("[fulltext] stealth fetch: %d paper(s)", len(papers_with_urls))
     try:
-        async with AsyncCamoufox(headless=True) as browser:  # type: ignore[no-untyped-call]
+        async with AsyncCamoufox(headless=True) as browser:
             page = await browser.new_page()
             cleared: set[str] = set()
             for paper, url in papers_with_urls:
