@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_api_key: str = ""
     llm_model: str = "gemini-3-pro"
+    # Per-request timeout (seconds) and automatic retry count for LLM API calls,
+    # forwarded to the OpenAI SDK client. The SDK retries connection errors,
+    # timeouts, and 408/409/429/5xx responses with exponential backoff. Setting
+    # these explicitly (rather than relying on SDK defaults) makes a slow/hung
+    # endpoint fail fast and survives SDK default changes. max_retries=0 disables.
+    llm_timeout: float = Field(default=120.0, gt=0.0)
+    llm_max_retries: int = Field(default=3, ge=0)
     # Optional integer seed forwarded to the OpenAI-compatible API (`seed`
     # request field) for reproducible sampling. None = omit the field (default,
     # behaviour-neutral); pinning it aids determinism alongside the temperatures.

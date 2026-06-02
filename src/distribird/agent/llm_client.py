@@ -16,7 +16,12 @@ from distribird.config import Settings
 
 def get_client(settings: Settings) -> OpenAI:
     """Return a client pointed at the configured default LLM endpoint."""
-    return OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+    return OpenAI(
+        base_url=settings.llm_base_url,
+        api_key=settings.llm_api_key,
+        timeout=settings.llm_timeout,
+        max_retries=settings.llm_max_retries,
+    )
 
 
 def get_deep_research_client(settings: Settings) -> OpenAI:
@@ -24,4 +29,6 @@ def get_deep_research_client(settings: Settings) -> OpenAI:
     return OpenAI(
         base_url=settings.deep_research_base_url,
         api_key=settings.deep_research_api_key,
+        timeout=settings.llm_timeout,
+        max_retries=settings.llm_max_retries,
     )
